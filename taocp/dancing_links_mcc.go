@@ -36,6 +36,7 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		n2       int      // number of secondary items
 		n        int      // total number of items
 		nOptions int      // total number of options
+		t        int      // number of possible options in a solution
 		name     []string // name of the item
 		llink    []int    // right link of the item
 		rlink    []int    // left link of the item
@@ -173,14 +174,15 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		n2 = len(secondary)
 		n = n1 + n2
 		nOptions = len(options)
+		t = nOptions * 10
 
 		if stats != nil {
 			stats.Theta = stats.Delta
 			stats.MaxLevel = -1
 			if stats.Levels == nil {
-				stats.Levels = make([]int, nOptions+1)
+				stats.Levels = make([]int, t)
 			} else {
-				for len(stats.Levels) < nOptions+1 {
+				for len(stats.Levels) < t {
 					stats.Levels = append(stats.Levels, 0)
 				}
 			}
@@ -310,8 +312,8 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		}
 
 		level = 0
-		state = make([]int, nOptions)
-		ft = make([]int, nOptions)
+		state = make([]int, t)
+		ft = make([]int, t)
 
 		if debug {
 			dump()
