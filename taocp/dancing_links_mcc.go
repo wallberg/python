@@ -35,6 +35,7 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		n1       int      // number of primary items
 		n2       int      // number of secondary items
 		n        int      // total number of items
+		nOptions int      // total number of options
 		name     []string // name of the item
 		llink    []int    // right link of the item
 		rlink    []int    // left link of the item
@@ -58,6 +59,9 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		b.WriteString("\n")
 
 		// Tables
+		b.WriteString(fmt.Sprintf("l    :  %d\n", level))
+		b.WriteString(fmt.Sprintf("x    :  %v\n", state[0:level]))
+		b.WriteString(fmt.Sprintf("ft    :  %v\n", ft[0:level]))
 		b.WriteString(fmt.Sprintf("name :  %v\n", name))
 		b.WriteString(fmt.Sprintf("llink:  %v\n", llink))
 		b.WriteString(fmt.Sprintf("rlink:  %v\n", rlink))
@@ -86,8 +90,8 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		b.WriteString("\n")
 
 		// Selected options
-		for i, p := range state[0:level] {
-			b.WriteString(fmt.Sprintf("  option: i=%d, p=%d (", i, p))
+		for _, p := range state[0:level] {
+			b.WriteString(fmt.Sprintf("  option: p=%d (", p))
 			// Move back to first element in the option
 			for top[p-1] > 0 {
 				p--
@@ -168,14 +172,15 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		n1 = len(items)
 		n2 = len(secondary)
 		n = n1 + n2
+		nOptions = len(options)
 
 		if stats != nil {
 			stats.Theta = stats.Delta
 			stats.MaxLevel = -1
 			if stats.Levels == nil {
-				stats.Levels = make([]int, n)
+				stats.Levels = make([]int, nOptions+1)
 			} else {
-				for len(stats.Levels) < n {
+				for len(stats.Levels) < nOptions+1 {
 					stats.Levels = append(stats.Levels, 0)
 				}
 			}
@@ -207,7 +212,6 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 		rlink[n1] = 0
 
 		// Fill out the option tables
-		nOptions := len(options)
 		nOptionItems := 0
 		for _, option := range options {
 			nOptionItems += len(option)
@@ -316,6 +320,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 
 	showProgress := func() {
 
+		if debug && stats.Verbosity > 0 {
+			dump()
+		}
+
 		est := 0.0 // estimate of percentage done
 		tcum := 1
 
@@ -366,19 +374,21 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 
 	lvisit := func() bool {
 
-		if debug && stats.Verbosity > 0 {
-			dump()
-		}
-
 		// Only one of the secondary items will have it's color value, the
 		// others will have -1. Save the color and add it to all the matching
 		// secondary items at the end.
 		sitemColor := make(map[string]string)
 
-		// Iterate over the options
-		options := make([][]string, 0)
-		for i, p := range state[0:level] {
-			options = append(options, make([]string, 0))
+		// Iterate over the options for this solution
+		solution := make([][]string, 0)
+		for _, p := range state[0:level] {
+			option := make([]string, 0)
+
+			// Determine if this option should be included
+			if p <= n1 {
+				continue
+			}
+
 			// Move back to first element in the option
 			for top[p-1] > 0 {
 				p--
@@ -390,21 +400,23 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 				if color[q] > 0 {
 					sitemColor[name] = colors[color[q]]
 				}
-				options[i] = append(options[i], name)
+				option = append(option, name)
 				q++
 			}
+
+			solution = append(solution, option)
 		}
 
 		// Add the secondary item colors
-		for i, option := range options {
+		for i, option := range solution {
 			for j, item := range option {
 				if color, ok := sitemColor[item]; ok {
-					options[i][j] += ":" + color
+					solution[i][j] += ":" + color
 				}
 			}
 		}
 
-		return visit(options)
+		return visit(solution)
 	}
 
 	// mrv selects the next item to try using the Minimum Remaining
@@ -430,6 +442,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 
 	// hide removes an option from further consideration
 	hide := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("hide(p=%d)", p)
+		}
+
 		// iterate over the items in this option
 		q := p + 1
 		for q != p {
@@ -448,6 +464,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	unhide := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("unhide(p=%d)", p)
+		}
+
 		q := p - 1
 		for q != p {
 			x := top[q]
@@ -467,6 +487,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	// cover removes i from the list of items needing to be covered removes and
 	// hides all of the item's options
 	cover := func(i int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("cover(i=%d)", i)
+		}
+
 		// hide all of the item's options
 		p := dlink[i]
 		for p != i {
@@ -479,6 +503,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	uncover := func(i int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("uncover(i=%d)", i)
+		}
+
 		l, r := llink[i], rlink[i]
 		rlink[l], llink[r] = i, i
 		p := ulink[i]
@@ -489,6 +517,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	purify := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("purify(p=%d)", p)
+		}
+
 		c := color[p]
 		i := top[p]
 		color[i] = c
@@ -504,6 +536,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	unpurify := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("unpurify(p=%d)", p)
+		}
+
 		c := color[p]
 		i := top[p]
 		q := ulink[i]
@@ -518,6 +554,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	commit := func(p int, j int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("commit(p=%d, j=%d)", p, j)
+		}
+
 		if color[p] == 0 {
 			cover(j)
 		}
@@ -527,6 +567,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	uncommit := func(p int, j int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("uncommit(p=%d, j=%d)", p, j)
+		}
+
 		if color[p] == 0 {
 			uncover(j)
 		}
@@ -536,6 +580,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	tweak := func(x int, p int, prime bool) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("tweak(x=%d, p=%d, prime=%t)", x, p, prime)
+		}
+
 		if !prime {
 			hide(x)
 		}
@@ -547,6 +595,10 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 	}
 
 	untweak := func(l int, prime bool) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("untweak(l=%d, prime=%t)", l, prime)
+		}
+
 		a := ft[l]
 		var p int
 		if a <= n {
@@ -600,7 +652,7 @@ func MCC(items []string, multiplicities [][2]int, options [][]string,
 M2:
 	// M2. [Enter level l.]
 	if debug {
-		log.Printf("M2. level=%d, x=%v\n", level, state[0:level])
+		log.Printf("M2. l=%d, x[0:l]=%v\n", level, state[0:level])
 	}
 
 	if stats != nil {
@@ -666,7 +718,7 @@ M2:
 M5:
 	// M5. [Possibly tweak x_l.]
 	if debug {
-		log.Printf("M5. Possibly tweak l=%d, x[l]=%d\n", level, state[level])
+		log.Printf("M5. Possibly tweak l=%d, x[0:l]=%v\n", level, state[0:level])
 	}
 
 	if bound[i] == 0 && slack[i] == 0 {
@@ -692,7 +744,7 @@ M5:
 M6:
 	// M6. [Try x_l.]
 	if debug {
-		log.Printf("M5. Try l=%d, x[l]=%d\n", level, state[level])
+		log.Printf("M6. Try l=%d, x[0:l]=%v\n", level, state[0:level])
 	}
 	if state[level] != i {
 		p = state[level] + 1
@@ -758,7 +810,7 @@ M8:
 	if bound[i] == 0 && slack[i] == 0 {
 		uncover(i)
 	} else {
-		untweak(state[level], bound[i] == 0)
+		untweak(level, bound[i] == 0)
 	}
 	bound[i]++
 
