@@ -61,6 +61,8 @@ func NewExactCoverYaml(items []string, sitems []string, options [][]string) *Exa
 }
 
 // ExactCover implements Algorithm X, exact cover via dancing links.
+// The task is to find all subsets of options such that each primary item j
+// occurs exactly once.
 //
 // Arguments:
 // items     -- sorted list of primary items

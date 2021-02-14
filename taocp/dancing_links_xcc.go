@@ -3,13 +3,18 @@ package taocp
 import (
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
 )
 
 // XCC implements Algorithm C (7.2.2.1), exact covering with colors via
-// dancing links.
+// dancing links.  The task is to find all subsets of options such
+// that:
+//
+// 1) each primary item j occurs exactly once
+// 2) every secondary item has been assigned at most one color
 //
 // Arguments:
 // items     -- sorted list of primary items
@@ -19,11 +24,14 @@ import (
 //              "color" appended after a colon, eg "sitem:color"
 // stats     -- structure to capture runtime statistics and provide feedback on
 //              progress
+// minimax   -- when true, only visit solutions whose maximum option number is
+//              <= the maximum option number of any solution already found
 // visit     -- function called with each discovered solution, returns true
 //              if the search should continue
 //
 func XCC(items []string, options [][]string, secondary []string,
-	stats *ExactCoverStats, visit func(solution [][]string) bool) error {
+	stats *ExactCoverStats, minimax bool,
+	visit func(solution [][]string) bool) error {
 
 	var (
 		n1       int      // number of primary items
@@ -40,6 +48,7 @@ func XCC(items []string, options [][]string, secondary []string,
 		colors   []string // map of color names, key is the index starting at 1
 		level    int
 		state    []int // search state
+		cutoff   int   // pointer to the spacer at the end of the best minimax solution found so far
 		debug    bool  // is debug enabled?
 		progress bool  // is progress enabled?
 	)
@@ -63,6 +72,7 @@ func XCC(items []string, options [][]string, secondary []string,
 				b.WriteString(fmt.Sprintf(" %d=%s", i, colorName))
 			}
 		}
+		b.WriteString("\n")
 
 		// Remaining items
 		b.WriteString("items:  ")
@@ -262,6 +272,7 @@ func XCC(items []string, options [][]string, secondary []string,
 
 		level = 0
 		state = make([]int, nOptions)
+		cutoff = math.MaxInt16
 
 		if debug {
 			dump()
@@ -269,6 +280,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	showProgress := func() {
+
+		if debug && stats.Verbosity > 0 {
+			dump()
+		}
 
 		est := 0.0 // estimate of percentage done
 		tcum := 1
@@ -320,9 +335,7 @@ func XCC(items []string, options [][]string, secondary []string,
 
 	lvisit := func() bool {
 
-		if debug && stats.Verbosity > 0 {
-			dump()
-		}
+		pMax := 0 // Track max p for minimax
 
 		// Only one of the secondary items will have it's color value, the
 		// others will have -1. Save the color and add it to all the matching
@@ -332,6 +345,9 @@ func XCC(items []string, options [][]string, secondary []string,
 		// Iterate over the options
 		options := make([][]string, 0)
 		for i, p := range state[0:level] {
+			if p > pMax {
+				pMax = p
+			}
 			options = append(options, make([]string, 0))
 			// Move back to first element in the option
 			for top[p-1] > 0 {
@@ -358,6 +374,23 @@ func XCC(items []string, options [][]string, secondary []string,
 			}
 		}
 
+		// // For minimax, remove all nodes > cutoff (new value)
+		// if minimax {
+		// 	// Find spacer at the end of the option for max x_k
+		// 	pp := pMax
+		// 	for ; top[pp] > 0; pp++ {
+		// 	}
+
+		// 	// If we have new cutoff value, remove all nodes > cutoff
+		// 	if pp != cutoff {
+		// 		cutoff = pp
+		// 		for _, p := range state[0:level] {
+
+		// 		}
+		// 	}
+		// }
+		cutoff++
+		log.Print(cutoff)
 		return visit(options)
 	}
 
@@ -385,6 +418,10 @@ func XCC(items []string, options [][]string, secondary []string,
 
 	// hide removes an option from further consideration
 	hide := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("hide(p=%d)", p)
+		}
+
 		// iterate over the items in this option
 		q := p + 1
 		for q != p {
@@ -403,6 +440,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	unhide := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("unhide(p=%d)", p)
+		}
+
 		q := p - 1
 		for q != p {
 			x := top[q]
@@ -422,6 +463,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	// cover removes i from the list of items needing to be covered removes and
 	// hides all of the item's options
 	cover := func(i int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("cover(i=%d)", i)
+		}
+
 		// hide all of the item's options
 		p := dlink[i]
 		for p != i {
@@ -434,6 +479,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	uncover := func(i int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("uncover(i=%d)", i)
+		}
+
 		l, r := llink[i], rlink[i]
 		rlink[l], llink[r] = i, i
 		p := ulink[i]
@@ -444,6 +493,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	purify := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("purify(p=%d)", p)
+		}
+
 		c := color[p]
 		i := top[p]
 		color[i] = c
@@ -459,6 +512,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	unpurify := func(p int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("unpurify(p=%d)", p)
+		}
+
 		c := color[p]
 		i := top[p]
 		q := ulink[i]
@@ -473,6 +530,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	commit := func(p int, j int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("commit(p=%d, j=%d)", p, j)
+		}
+
 		if color[p] == 0 {
 			cover(j)
 		}
@@ -482,6 +543,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	uncommit := func(p int, j int) {
+		if debug && stats.Verbosity > 1 {
+			log.Printf("uncommit(p=%d, j=%d)", p, j)
+		}
+
 		if color[p] == 0 {
 			uncover(j)
 		}
@@ -491,6 +556,10 @@ func XCC(items []string, options [][]string, secondary []string,
 	}
 
 	// C1 [Initialize.]
+	if stats != nil && stats.Debug {
+		log.Printf("C1. Initialize")
+	}
+
 	if err := validate(); err != nil {
 		return err
 	}
@@ -509,7 +578,7 @@ func XCC(items []string, options [][]string, secondary []string,
 C2:
 	// C2. [Enter level l.]
 	if debug {
-		log.Printf("C2. level=%d, x=%v\n", level, state[0:level])
+		log.Printf("C2. l=%d, x[0:l]=%v\n", level, state[0:level])
 	}
 
 	if stats != nil {
@@ -565,7 +634,7 @@ C2:
 C5:
 	// C5. [Try x_l.]
 	if debug {
-		log.Printf("C5. Try l=%d, x[l]=%d\n", level, state[level])
+		log.Printf("C5. Try l=%d, x[0:l+1]=%v\n", level, state[0:level+1])
 	}
 	if state[level] == i {
 		goto C7
@@ -770,7 +839,7 @@ func SudokuCards(cards [9][3][3]int, stats *ExactCoverStats,
 	solutions := make(map[[9]int][][9][9]int)
 
 	// Solve using XCC
-	XCC(items, options, sitems, stats,
+	XCC(items, options, sitems, stats, false,
 		func(solution [][]string) bool {
 			var (
 				cards [9]int
@@ -926,7 +995,7 @@ func WordSearch(m int, n int, words []string, stats *ExactCoverStats,
 		}
 	}
 
-	XCC(words, options, secondary, stats,
+	XCC(words, options, secondary, stats, false,
 		func(solution [][]string) bool {
 			return visit(solution)
 		})

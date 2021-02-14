@@ -1,6 +1,7 @@
 package taocp
 
 import (
+	"log"
 	"reflect"
 	"testing"
 )
@@ -32,7 +33,7 @@ func TestXCC(t *testing.T) {
 
 	count = 0
 	stats = new(ExactCoverStats)
-	XCC(xcItems, xcOptions, []string{}, stats,
+	XCC(xcItems, xcOptions, []string{}, stats, false,
 		func(solution [][]string) bool {
 			if !reflect.DeepEqual(solution, xcExpected) {
 				t.Errorf("Expected %v; got %v", xcExpected, solution)
@@ -51,7 +52,7 @@ func TestXCC(t *testing.T) {
 
 	count = 0
 	stats = new(ExactCoverStats)
-	XCC(xccItems, xccOptions, xccSItems, stats,
+	XCC(xccItems, xccOptions, xccSItems, stats, false,
 		func(solution [][]string) bool {
 			if !reflect.DeepEqual(solution, xccExpected) {
 				t.Errorf("Expected %v; got %v", xccExpected, solution)
@@ -172,5 +173,56 @@ func BenchmarkSudokuCards(b *testing.B) {
 				SudokuCards(cards2, nil, func([9]int, [9][9]int) bool { return true })
 			}
 		})
+	}
+}
+
+func TestXCCminimax(t *testing.T) {
+
+	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+
+	cases := []struct {
+		items     []string
+		options   [][]string
+		secondary []string
+		solutions [][][]string
+	}{
+		{
+			[]string{"a"},
+			[][]string{
+				{"a", "x"},
+				{"a", "y"},
+				{"a", "z"},
+			},
+			[]string{"x", "y", "z"},
+			[][][]string{
+				{{"a", "x"}},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		got := make([][][]string, 0)
+		stats := &ExactCoverStats{
+			Progress:  true,
+			Delta:     0,
+			Debug:     true,
+			Verbosity: 2,
+		}
+		err := XCC(c.items, c.options, c.secondary, stats, true,
+			func(solution [][]string) bool {
+				got = append(got, solution)
+				return true
+			})
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		sortSolutions(got)
+		sortSolutions(c.solutions)
+
+		if !reflect.DeepEqual(got, c.solutions) {
+			t.Errorf("Got solutions %v; want %v", got, c.solutions)
+		}
 	}
 }

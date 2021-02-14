@@ -241,7 +241,7 @@ func TestPolyominoXC(t *testing.T) {
 		items, options := PolyominoXC(board, shapes)
 
 		count := 0
-		XCC(items, options, []string{}, nil,
+		XCC(items, options, []string{}, nil, false,
 			func(solution [][]string) bool {
 				count++
 				return true
@@ -286,7 +286,7 @@ func TestPolyominoXC(t *testing.T) {
 
 		count := 0
 		// stats := &ExactCoverStats{Progress: true, Delta: 100000000}
-		XCC(items, options, []string{}, nil,
+		XCC(items, options, []string{}, nil, false,
 			func(solution [][]string) bool {
 				count++
 				return true
@@ -382,7 +382,7 @@ func TestPolyominoFill(t *testing.T) {
 		// Solve using XC
 		count := 0
 		// stats := &ExactCoverStats{Progress: true, Delta: 100000000}
-		XCC(items, options, []string{}, nil,
+		XCC(items, options, []string{}, nil, false,
 			func(solution [][]string) bool {
 				count++
 				return true
