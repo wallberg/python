@@ -83,7 +83,7 @@ func (command xcCommand) Execute(args []string) error {
 		Delta:     command.Delta,
 	}
 	output.WriteString("solutions:\n")
-	err = taocp.XCC(xcYaml.Items, options, xcYaml.SItems, stats, false,
+	err = taocp.XCC(xcYaml.Items, options, xcYaml.SItems, stats, false, false,
 		func(solution [][]string) bool {
 			output.WriteString("  -\n")
 			for _, option := range solution {

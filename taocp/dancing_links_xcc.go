@@ -26,21 +26,24 @@ import (
 //              progress
 // minimax   -- when true, only visit solutions whose maximum option number is
 //              <= the maximum option number of any solution already found
+// minimaxSingle
+//           -- return only one minimax solution for a given maximium option number
 // visit     -- function called with each discovered solution, returns true
 //              if the search should continue
 //
 func XCC(items []string, options [][]string, secondary []string,
-	stats *ExactCoverStats, minimax bool,
+	stats *ExactCoverStats, minimax bool, minimaxSingle bool,
 	visit func(solution [][]string) bool) error {
 
 	var (
 		n1       int      // number of primary items
 		n2       int      // number of secondary items
 		n        int      // total number of items
+		size     int      // total size of the options table
 		name     []string // name of the item
 		llink    []int    // right link of the item
 		rlink    []int    // left link of the item
-		top      []int
+		top      []int    // pointer to the vertical list header (item)
 		llen     []int
 		ulink    []int
 		dlink    []int
@@ -48,7 +51,7 @@ func XCC(items []string, options [][]string, secondary []string,
 		colors   []string // map of color names, key is the index starting at 1
 		level    int
 		state    []int // search state
-		cutoff   int   // pointer to the spacer at the end of the best minimax solution found so far
+		cutoff   int   // pointer to the spacer at one end of the best minimax solution found so far
 		debug    bool  // is debug enabled?
 		progress bool  // is progress enabled?
 	)
@@ -98,6 +101,127 @@ func XCC(items []string, options [][]string, secondary []string,
 			}
 			b.WriteString(" )\n")
 		}
+		// log.Print(b.String())
+
+		//
+		// Populate the matrix
+		//
+
+		var m [][]string
+
+		// List the items
+		m = append(m, make([]string, n+2))
+		m[0][0] = "NAME"
+
+		// primary items
+		for i := rlink[0]; i != 0; i = rlink[i] {
+			m[0][i] = fmt.Sprintf("%d,%s", i, name[i])
+		}
+
+		// secondary items
+		for i := rlink[n+1]; i != n+1; i = rlink[i] {
+			m[0][i] = fmt.Sprintf("%d,%s", i, name[i])
+		}
+
+		// m[0][n+1] = fmt.Sprintf("%d -", n+1)
+
+		// spacer row
+		m = append(m, make([]string, n+2))
+
+		// llen
+		m = append(m, make([]string, n+2))
+		m[2][0] = "LLEN"
+		for i := 1; i < n+1; i++ {
+			m[2][i] = fmt.Sprintf("%d", llen[i])
+		}
+
+		// options
+		for p := n + 1; p < size-1; {
+			var row []string
+
+			// spacer row
+			row = make([]string, n+2)
+			if p == cutoff {
+				row[0] = "CUTOFF"
+			}
+			m = append(m, row)
+
+			// start a new option
+			row = make([]string, n+2)
+			row[0] = fmt.Sprintf("%d:%d", p, top[p])
+
+			// add each item in the option
+			for p++; top[p] > 0; p++ {
+				// only add if the item is still in the list
+				i := top[p]
+				for q := dlink[i]; q != i; q = dlink[q] {
+					if q == p {
+						s := name[i]
+						if color[p] > 0 {
+							s += ":" + colors[color[p]]
+						}
+						row[top[p]] = fmt.Sprintf("%d,%s", p, s)
+						break
+					}
+				}
+			}
+
+			// finish this option
+			row[n+1] = fmt.Sprintf("%d:%d", p, top[p])
+			m = append(m, row)
+		}
+
+		//
+		// Get the column widths
+		//
+
+		widths := make([]int, n+2)
+		for _, row := range m {
+			for col := 0; col < n+2; col++ {
+				if len(row[col]) > widths[col] {
+					widths[col] = len(row[col])
+				}
+			}
+		}
+
+		//
+		// Prepare the output
+		//
+
+		b.Reset()
+		b.WriteString("\n")
+
+		// Add the level
+		b.WriteString(fmt.Sprintf("level=%d\n", level))
+
+		// Add the state
+		b.WriteString("x=")
+		for _, p := range state[0:level] {
+			b.WriteString(name[top[p]])
+			b.WriteString(" ")
+		}
+		b.WriteString("\n")
+
+		// Add the matrix
+		for _, row := range m {
+			for col := 0; col < n+2; col++ {
+				b.WriteString(row[col])
+
+				// Add the blank padding
+				for p := len(row[col]); p < widths[col]; p++ {
+					b.WriteString(" ")
+				}
+				b.WriteString("  ")
+
+				if col == n1 {
+					// Add seperator between primary and secondary items
+					b.WriteString(" | ")
+				}
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString(fmt.Sprintf("COLOR:  %v\n", color))
+
 		log.Print(b.String())
 	}
 
@@ -187,7 +311,7 @@ func XCC(items []string, options [][]string, secondary []string,
 		for _, option := range options {
 			nOptionItems += len(option)
 		}
-		size := n + 1 + nOptions + 1 + nOptionItems
+		size = n + 1 + nOptions + 1 + nOptionItems
 
 		top = make([]int, size)
 		llen = top[0 : n+1] // first n+1 elements of top
@@ -333,67 +457,6 @@ func XCC(items []string, options [][]string, secondary []string,
 		log.Print(b.String())
 	}
 
-	lvisit := func() bool {
-
-		pMax := 0 // Track max p for minimax
-
-		// Only one of the secondary items will have it's color value, the
-		// others will have -1. Save the color and add it to all the matching
-		// secondary items at the end.
-		sitemColor := make(map[string]string)
-
-		// Iterate over the options
-		options := make([][]string, 0)
-		for i, p := range state[0:level] {
-			if p > pMax {
-				pMax = p
-			}
-			options = append(options, make([]string, 0))
-			// Move back to first element in the option
-			for top[p-1] > 0 {
-				p--
-			}
-			// Iterate over elements in the option
-			q := p
-			for top[q] > 0 {
-				name := name[top[q]]
-				if color[q] > 0 {
-					sitemColor[name] = colors[color[q]]
-				}
-				options[i] = append(options[i], name)
-				q++
-			}
-		}
-
-		// Add the secondary item colors
-		for i, option := range options {
-			for j, item := range option {
-				if color, ok := sitemColor[item]; ok {
-					options[i][j] += ":" + color
-				}
-			}
-		}
-
-		// // For minimax, remove all nodes > cutoff (new value)
-		// if minimax {
-		// 	// Find spacer at the end of the option for max x_k
-		// 	pp := pMax
-		// 	for ; top[pp] > 0; pp++ {
-		// 	}
-
-		// 	// If we have new cutoff value, remove all nodes > cutoff
-		// 	if pp != cutoff {
-		// 		cutoff = pp
-		// 		for _, p := range state[0:level] {
-
-		// 		}
-		// 	}
-		// }
-		cutoff++
-		log.Print(cutoff)
-		return visit(options)
-	}
-
 	// mrv selects the next item to try using the Minimum Remaining
 	// Values heuristic.
 	mrv := func() int {
@@ -448,6 +511,10 @@ func XCC(items []string, options [][]string, secondary []string,
 		for q != p {
 			x := top[q]
 			u, d := ulink[q], dlink[q]
+			if minimax && d > cutoff {
+				d = x
+				dlink[q] = x
+			}
 			if x <= 0 {
 				q = d // q was a spacer
 			} else {
@@ -460,7 +527,7 @@ func XCC(items []string, options [][]string, secondary []string,
 		}
 	}
 
-	// cover removes i from the list of items needing to be covered removes and
+	// cover removes i from the list of items needing to be covered and
 	// hides all of the item's options
 	cover := func(i int) {
 		if debug && stats.Verbosity > 1 {
@@ -481,6 +548,20 @@ func XCC(items []string, options [][]string, secondary []string,
 	uncover := func(i int) {
 		if debug && stats.Verbosity > 1 {
 			log.Printf("uncover(i=%d)", i)
+		}
+
+		if minimax {
+			// Remove all nodes > cutoff from item i's list
+			q := dlink[i]
+			for q != i {
+				if q > cutoff {
+					// Remove q from i's list
+					u, d := ulink[q], dlink[q]
+					dlink[u], ulink[d] = d, u
+					llen[i]--
+				}
+				q = dlink[q]
+			}
 		}
 
 		l, r := llink[i], rlink[i]
@@ -516,6 +597,7 @@ func XCC(items []string, options [][]string, secondary []string,
 			log.Printf("unpurify(p=%d)", p)
 		}
 
+		// TODO: determine what we need to do here for minimax
 		c := color[p]
 		i := top[p]
 		q := ulink[i]
@@ -553,6 +635,102 @@ func XCC(items []string, options [][]string, secondary []string,
 		if color[p] > 0 {
 			unpurify(p)
 		}
+	}
+
+	lvisit := func() bool {
+
+		pMax := 0 // Track max p for minimax
+		lMax := 0 // level for max p
+
+		// Only one of the secondary items will have it's color value, the
+		// others will have -1. Save the color and add it to all the matching
+		// secondary items at the end.
+		sitemColor := make(map[string]string)
+
+		// Iterate over the options
+		options := make([][]string, 0)
+		for i, p := range state[0:level] {
+			if p > pMax {
+				pMax = p
+				lMax = i
+			}
+			options = append(options, make([]string, 0))
+			// Move back to first element in the option
+			for top[p-1] > 0 {
+				p--
+			}
+			// Iterate over elements in the option
+			q := p
+			for top[q] > 0 {
+				name := name[top[q]]
+				if color[q] > 0 {
+					sitemColor[name] = colors[color[q]]
+				}
+				options[i] = append(options[i], name)
+				q++
+			}
+		}
+
+		// Add the secondary item colors
+		for i, option := range options {
+			for j, item := range option {
+				if color, ok := sitemColor[item]; ok {
+					options[i][j] += ":" + color
+				}
+			}
+		}
+
+		// For minimax, remove all nodes > cutoff (new value)
+		if minimax {
+			// Find spacer at the end of the option for max x_k
+			// For minimaxSingle=true find the spacer before the
+			// solution, otherwise the spacer after the solutioin
+			pp := pMax
+			for top[pp] > 0 {
+				if minimaxSingle {
+					pp--
+				} else {
+					pp++
+				}
+			}
+
+			// If we have new cutoff value, remove all nodes > cutoff from
+			// further consideration
+			if pp != cutoff {
+				cutoff = pp
+				for _, p := range state[0:level] {
+					x := top[p]
+					q := p
+					for q != x {
+						if q > cutoff {
+							// Remove q from the x's list
+							u, d := ulink[q], dlink[q]
+							dlink[u], ulink[d] = d, u
+							// TODO: determine if we really need to process
+							// each removed option in order to decrement
+							// llen[x]
+							llen[x]--
+						}
+						q = dlink[q]
+					}
+				}
+
+				// Backtrack for each item in state >= lMax
+				if minimaxSingle {
+					for k := level - 1; k >= lMax; k-- {
+						i := top[state[k]]
+						uncover(i)
+						level--
+					}
+				}
+			}
+		}
+
+		if debug {
+			log.Printf("visit(%v)", options)
+		}
+
+		return visit(options)
 	}
 
 	// C1 [Initialize.]
@@ -839,7 +1017,7 @@ func SudokuCards(cards [9][3][3]int, stats *ExactCoverStats,
 	solutions := make(map[[9]int][][9][9]int)
 
 	// Solve using XCC
-	XCC(items, options, sitems, stats, false,
+	XCC(items, options, sitems, stats, false, false,
 		func(solution [][]string) bool {
 			var (
 				cards [9]int
@@ -995,7 +1173,7 @@ func WordSearch(m int, n int, words []string, stats *ExactCoverStats,
 		}
 	}
 
-	XCC(words, options, secondary, stats, false,
+	XCC(words, options, secondary, stats, false, false,
 		func(solution [][]string) bool {
 			return visit(solution)
 		})
