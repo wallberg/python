@@ -28,16 +28,19 @@ var (
 
 func TestXCC(t *testing.T) {
 
-	var count int
+	var (
+		count int
+		stats *ExactCoverStats
+	)
 
-	stats := &ExactCoverStats{
+	count = 0
+	stats = &ExactCoverStats{
 		// Progress:  true,
 		// Delta:     0,
 		// Debug:     true,
 		// Verbosity: 2,
 	}
 
-	count = 0
 	XCC(xcItems, xcOptions, []string{}, stats, false, false,
 		func(solution [][]string) bool {
 			if !reflect.DeepEqual(solution, xcExpected) {
@@ -56,6 +59,12 @@ func TestXCC(t *testing.T) {
 	}
 
 	count = 0
+	stats = &ExactCoverStats{
+		// Progress:  true,
+		// Delta:     0,
+		// Debug:     true,
+		// Verbosity: 2,
+	}
 	XCC(xccItems, xccOptions, xccSItems, stats, false, false,
 		func(solution [][]string) bool {
 			if !reflect.DeepEqual(solution, xccExpected) {
@@ -191,86 +200,86 @@ func TestXCCminimax(t *testing.T) {
 		single    bool
 		solutions [][][]string
 	}{
-		// {
-		// 	[]string{"a"},
-		// 	[][]string{
-		// 		{"a", "x"},
-		// 		{"a", "y"},
-		// 		{"a", "z"},
-		// 	},
-		// 	[]string{"x", "y", "z"},
-		// 	false,
-		// 	[][][]string{
-		// 		{{"a", "x"}},
-		// 	},
-		// },
-		// {
-		// 	[]string{"a", "b"},
-		// 	[][]string{
-		// 		{"a", "x"},
-		// 		{"a", "y"},
-		// 		{"a", "z"},
-		// 		{"b", "y"},
-		// 	},
-		// 	[]string{"x", "y", "z"},
-		// 	false,
-		// 	[][][]string{
-		// 		{{"b", "y"}, {"a", "x"}},
-		// 		{{"b", "y"}, {"a", "z"}},
-		// 	},
-		// },
-		// {
-		// 	[]string{"a", "b"},
-		// 	[][]string{
-		// 		{"a", "x"},
-		// 		{"a", "y"},
-		// 		{"a", "z"},
-		// 		{"b", "y"},
-		// 	},
-		// 	[]string{"x", "y", "z"},
-		// 	true,
-		// 	[][][]string{
-		// 		{{"b", "y"}, {"a", "x"}},
-		// 	},
-		// },
-		// {
-		// 	[]string{"a", "b"},
-		// 	[][]string{
-		// 		{"a", "x"},
-		// 		{"a", "y"},
-		// 		{"b", "y"},
-		// 		{"b", "x"},
-		// 	},
-		// 	[]string{"x", "y", "z"},
-		// 	true,
-		// 	[][][]string{
-		// 		{{"a", "x"}, {"b", "y"}},
-		// 	},
-		// },
-		// {
-		// 	[]string{"a", "b", "c", "d"},
-		// 	[][]string{
-		// 		{"a", "b", "x"},
-		// 		{"a", "b", "y:1"},
-		// 		{"b", "c", "y"},
-		// 		{"b", "c", "x"},
-		// 		{"a"},
-		// 		{"b"},
-		// 		{"c", "y:2"},
-		// 		{"c", "y:3"},
-		// 		{"c", "d", "z"},
-		// 		{"d", "y:3"},
-		// 		{"c", "d", "y"},
-		// 		{"c", "d", "x"},
-		// 	},
-		// 	[]string{"x", "y", "z"},
-		// 	false,
-		// 	[][][]string{
-		// 		{{"a", "b", "x"}, {"c", "d", "z"}},
-		// 		{{"a", "b", "y:1"}, {"c", "d", "z"}},
-		// 		{{"a"}, {"c", "d", "z"}, {"b"}},
-		// 	},
-		// },
+		{
+			[]string{"a"},
+			[][]string{
+				{"a", "x"},
+				{"a", "y"},
+				{"a", "z"},
+			},
+			[]string{"x", "y", "z"},
+			false,
+			[][][]string{
+				{{"a", "x"}},
+			},
+		},
+		{
+			[]string{"a", "b"},
+			[][]string{
+				{"a", "x"},
+				{"a", "y"},
+				{"a", "z"},
+				{"b", "y"},
+			},
+			[]string{"x", "y", "z"},
+			false,
+			[][][]string{
+				{{"b", "y"}, {"a", "x"}},
+				{{"b", "y"}, {"a", "z"}},
+			},
+		},
+		{
+			[]string{"a", "b"},
+			[][]string{
+				{"a", "x"},
+				{"a", "y"},
+				{"a", "z"},
+				{"b", "y"},
+			},
+			[]string{"x", "y", "z"},
+			true,
+			[][][]string{
+				{{"b", "y"}, {"a", "x"}},
+			},
+		},
+		{
+			[]string{"a", "b"},
+			[][]string{
+				{"a", "x"},
+				{"a", "y"},
+				{"b", "y"},
+				{"b", "x"},
+			},
+			[]string{"x", "y", "z"},
+			true,
+			[][][]string{
+				{{"a", "x"}, {"b", "y"}},
+			},
+		},
+		{
+			[]string{"a", "b", "c", "d"},
+			[][]string{
+				{"a", "b", "x"},
+				{"a", "b", "y:1"},
+				{"b", "c", "y"},
+				{"b", "c", "x"},
+				{"a"},
+				{"b"},
+				{"c", "y:2"},
+				{"c", "y:3"},
+				{"c", "d", "z"},
+				{"d", "y:3"},
+				{"c", "d", "y"},
+				{"c", "d", "x"},
+			},
+			[]string{"x", "y", "z"},
+			false,
+			[][][]string{
+				{{"a", "b", "x"}, {"c", "d", "z"}},
+				{{"a", "b", "y:1"}, {"c", "d", "z"}},
+				{{"a"}, {"c", "d", "z"}, {"b"}},
+			},
+		},
 		{
 			[]string{"a", "b", "c", "d"},
 			[][]string{
@@ -295,37 +304,36 @@ func TestXCCminimax(t *testing.T) {
 				{{"a"}, {"c", "d", "z"}, {"b"}},
 			},
 		},
-		// {
-		// 	[]string{"a", "b", "c", "d"},
-		// 	[][]string{
-		// 		{"a", "b", "x"},
-		// 		{"a", "b", "y:1"},
-		// 		{"b", "c", "y"},
-		// 		{"b", "c", "x"},
-		// 		{"a"},
-		// 		{"b"},
-		// 		{"c", "y:2"},
-		// 		{"d", "y:3"},
-		// 		{"c", "d", "z"},
-		// 		{"c", "d", "y"},
-		// 		{"c", "d", "x"},
-		// 	},
-		// 	[]string{"x", "y", "z"},
-		// 	true,
-		// 	[][][]string{
-		// 		{{"a", "b", "x"}, {"c", "d", "z"}},
-		// 		{{"a"}, {"d", "y:3"}, {"b", "c", "x"}},
-		// 	},
-		// },
+		{
+			[]string{"a", "b", "c", "d"},
+			[][]string{
+				{"a", "b", "x"},
+				{"a", "b", "y:1"},
+				{"b", "c", "y"},
+				{"b", "c", "x"},
+				{"a"},
+				{"b"},
+				{"c", "y:2"},
+				{"d", "y:3"},
+				{"c", "d", "z"},
+				{"c", "d", "y"},
+				{"c", "d", "x"},
+			},
+			[]string{"x", "y", "z"},
+			true,
+			[][][]string{
+				{{"a", "b", "x"}, {"c", "d", "z"}},
+			},
+		},
 	}
 
 	for i, c := range cases {
 		got := make([][][]string, 0)
 		stats := &ExactCoverStats{
-			Progress:  true,
-			Delta:     0,
-			Debug:     true,
-			Verbosity: 2,
+			// Progress:  true,
+			// Delta:     0,
+			// Debug:     true,
+			// Verbosity: 2,
 		}
 		err := XCC(c.items, c.options, c.secondary, stats, true, c.single,
 			func(solution [][]string) bool {
@@ -337,8 +345,8 @@ func TestXCCminimax(t *testing.T) {
 			t.Error(err)
 		}
 
-		// sortSolutions(got)
-		// sortSolutions(c.solutions)
+		sortSolutions(got)
+		sortSolutions(c.solutions)
 
 		if !reflect.DeepEqual(got, c.solutions) {
 			t.Errorf("For case #%d, got solutions %v; want %v", i, got, c.solutions)

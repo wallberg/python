@@ -508,22 +508,27 @@ func XCC(items []string, options [][]string, secondary []string,
 		}
 
 		q := p - 1
+		// log.Printf("q=%d", q)
 		for q != p {
 			x := top[q]
+			// log.Printf("x=%d", x)
 			u, d := ulink[q], dlink[q]
-			if minimax && d > cutoff {
-				d = x
-				dlink[q] = x
-			}
+			// log.Printf("u=%d, d=%d", u, d)
 			if x <= 0 {
 				q = d // q was a spacer
 			} else {
+				if minimax && d > cutoff {
+					// d = x
+					// dlink[q] = x
+					dlink[q], d = x, x
+				}
 				if color[q] >= 0 {
 					dlink[u], ulink[d] = q, q
 					llen[x]++
 				}
 				q--
 			}
+			// log.Printf("q=%d", q)
 		}
 	}
 
@@ -584,8 +589,12 @@ func XCC(items []string, options [][]string, secondary []string,
 		q := dlink[i]
 		for q != i {
 			if color[q] == c {
+				// this secondary item has the same color, the -1 value is a
+				// flag that indicates this item is already a match, no need to
+				// check the color again.
 				color[q] = -1
 			} else {
+				// this secondary item does not have the same color, so hide it
 				hide(q)
 			}
 			q = dlink[q]
@@ -601,13 +610,21 @@ func XCC(items []string, options [][]string, secondary []string,
 		c := color[p]
 		i := top[p]
 		q := ulink[i]
+		// log.Printf("c=%d, i=%d, q=%d", c, i, q)
 		for q != i {
 			if color[q] < 0 {
+				// Restore the original color, before purification
 				color[q] = c
 			} else {
+				// dump()
 				unhide(q)
 			}
 			q = ulink[q]
+			if minimax && q > cutoff {
+				dlink[q] = i
+				ulink[i] = q
+			}
+			// log.Printf("q=%d", q)
 		}
 	}
 
