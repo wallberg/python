@@ -38,6 +38,7 @@ type xccCommand struct {
 	Exercise83    bool   `short:"e" long:"exercise83" description:"Use the curious extension of Exercise 7.2.2.1-83"`
 	DisableSharp  bool   `short:"p" long:"disable-sharp" description:"Disable use of the sharp preference heuristic"`
 	Limit         int    `short:"l" long:"limit" description:"Halt after this number of solutions found" default:"0"`
+	WordCross     bool   `short:"w" long:"wc" description:"Use the custom WordCross XCC"`
 }
 
 func (command xccCommand) Execute(args []string) error {
@@ -106,35 +107,43 @@ func (command xccCommand) Execute(args []string) error {
 	if !command.Compact {
 		output.WriteString("solutions:\n")
 	}
-	err = taocp.XCC(xcYaml.Items, options, xcYaml.SItems, stats, xccOptions,
-		func(solution [][]string) bool {
 
-			if !command.Compact {
-				output.WriteString("  -\n")
-				for _, option := range solution {
-					output.WriteString("    - \"")
-					output.WriteString(strings.Join(option, " "))
-					output.WriteString("\"\n")
-				}
-			} else {
-				var s strings.Builder
-				for _, option := range solution {
-					if s.Len() > 0 {
-						s.WriteString(", ")
-					}
-					s.WriteString("\"")
-					s.WriteString(strings.Join(option, " "))
-					s.WriteString("\"")
-				}
-				s.WriteString("\n")
-				output.WriteString(s.String())
-			}
+	handler := func(solution [][]string) bool {
 
-			if command.Limit > 0 && stats.Solutions == command.Limit {
-				return false
+		if !command.Compact {
+			output.WriteString("  -\n")
+			for _, option := range solution {
+				output.WriteString("    - \"")
+				output.WriteString(strings.Join(option, " "))
+				output.WriteString("\"\n")
 			}
-			return true
-		})
+		} else {
+			var s strings.Builder
+			for _, option := range solution {
+				if s.Len() > 0 {
+					s.WriteString(", ")
+				}
+				s.WriteString("\"")
+				s.WriteString(strings.Join(option, " "))
+				s.WriteString("\"")
+			}
+			s.WriteString("\n")
+			output.WriteString(s.String())
+		}
+
+		if command.Limit > 0 && stats.Solutions == command.Limit {
+			return false
+		}
+		return true
+	}
+
+	if command.WordCross {
+		err = taocp.XCCWordCross(xcYaml.Items, options, xcYaml.SItems, stats, xccOptions, handler)
+	} else {
+		err = taocp.XCC(xcYaml.Items, options, xcYaml.SItems, stats, xccOptions, handler)
+
+	}
+
 	if err != nil {
 		return err
 	}
