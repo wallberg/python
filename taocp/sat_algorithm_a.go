@@ -3,6 +3,8 @@ package taocp
 import (
 	"fmt"
 	"log"
+	"math"
+	"sort"
 	"strings"
 )
 
@@ -95,6 +97,27 @@ func SATAlgorithmA(n int, clauses SATClauses,
 				b.WriteString(fmt.Sprintf(" %2d", state[p].C))
 			}
 		}
+		b.WriteString("\n\n")
+
+		// i
+		b.WriteString("       i = ")
+		for i := range start {
+			b.WriteString(fmt.Sprintf(" %2d", i))
+		}
+		b.WriteString("\n")
+
+		// START
+		b.WriteString("START(i) = ")
+		for _, val := range start {
+			b.WriteString(fmt.Sprintf(" %2d", val))
+		}
+		b.WriteString("\n")
+
+		// SIZE
+		b.WriteString(" SIZE(i) = ")
+		for _, val := range size {
+			b.WriteString(fmt.Sprintf(" %2d", val))
+		}
 		b.WriteString("\n")
 
 		log.Print(b.String())
@@ -130,18 +153,47 @@ func SATAlgorithmA(n int, clauses SATClauses,
 		// Iterate over clauses, last to first
 		for i := range clauses {
 			j := m - 1 - i // index into clauses
-			fmt.Println(clauses[j])
 
 			start[i] = ptr
 			size[i] = len(clauses[j])
 
+			// Sort literals of the clause in descending order
+			clause := make(SATClause, len(clauses[j]))
+			copy(clause, clauses[j])
+			sort.SliceStable(clause, func(i, j int) bool {
+				// Sort by the absolute value of the literal, descending
+				return math.Abs(float64(clause[j])) < math.Abs(float64(clause[i]))
+			})
+
 			// Iterate over literal values of the clauses
-			for _, k := range clauses[j] {
+			for _, k := range clause {
+				// compute literal l
+				var l int
 				if k >= 0 {
-					state[ptr].L = 2 * k
+					l = 2 * k
 				} else {
-					state[ptr].L = -2*k + 1
+					l = -2*k + 1
 				}
+
+				// insert into the state table
+				state[ptr].L = l
+				state[ptr].C = j + 1
+				state[l].C += 1
+
+				// initialize the double linked list
+				if state[l].F == 0 {
+					state[l].F = ptr
+					state[l].B = ptr
+				}
+
+				// insert into the beginning of the double linked list
+				f, b := state[l].F, l
+				state[ptr].F = f
+				state[ptr].B = b
+				state[b].F = ptr
+				state[f].B = ptr
+
+				// advance to the next position in the table
 				ptr += 1
 			}
 		}
