@@ -38,8 +38,12 @@ func SATAlgorithmA(n int, clauses SATClauses,
 		state     []State // search state
 		start     []int   // start of each clause in the table
 		size      []int   // table of clause lengths
-		debug     bool    // is debug enabled?
-		// progress bool  // is progress enabled?
+		a         int     // number of active clauses
+		d         int     // depth-plus-one of the implicit search tree
+		l         int     // literal
+		p         int     // index into the state table
+		i, j      int     // misc index values
+		moves     []int   // store current progress
 	)
 
 	// dump
@@ -123,6 +127,13 @@ func SATAlgorithmA(n int, clauses SATClauses,
 		log.Print(b.String())
 	}
 
+	// showProgress
+	showProgress := func() {
+		var b strings.Builder
+		b.WriteString(fmt.Sprintf("d=%d, a=%d, moves=%v\n", d, a, moves))
+
+		log.Print(b.String())
+	}
 	// initialize
 	initialize := func() {
 
@@ -136,26 +147,25 @@ func SATAlgorithmA(n int, clauses SATClauses,
 					stats.Levels = append(stats.Levels, 0)
 				}
 			}
-			debug = stats.Debug
-			// progress = stats.Progress
 		}
 
 		// Initialize the state table
 		m = len(clauses)
 		stateSize = 2*n + 2 + 3*m
 		state = make([]State, stateSize)
-		start = make([]int, m)
-		size = make([]int, m)
+		start = make([]int, m+1)
+		size = make([]int, m+1)
+		moves = make([]int, n+1)
 
 		// index into state
-		ptr := 2*n + 2
+		p := 2*n + 2
 
 		// Iterate over clauses, last to first
 		for i := range clauses {
 			j := m - 1 - i // index into clauses
 
-			start[i] = ptr
-			size[i] = len(clauses[j])
+			start[i+1] = p
+			size[i+1] = len(clauses[j])
 
 			// Sort literals of the clause in descending order
 			clause := make(SATClause, len(clauses[j]))
@@ -176,213 +186,208 @@ func SATAlgorithmA(n int, clauses SATClauses,
 				}
 
 				// insert into the state table
-				state[ptr].L = l
-				state[ptr].C = j + 1
+				state[p].L = l
+				state[p].C = j + 1
 				state[l].C += 1
 
 				// initialize the double linked list
 				if state[l].F == 0 {
-					state[l].F = ptr
-					state[l].B = ptr
+					state[l].F = p
+					state[l].B = p
 				}
 
 				// insert into the beginning of the double linked list
 				f, b := state[l].F, l
-				state[ptr].F = f
-				state[ptr].B = b
-				state[b].F = ptr
-				state[f].B = ptr
+				state[p].F = f
+				state[p].B = b
+				state[b].F = p
+				state[f].B = p
 
 				// advance to the next position in the table
-				ptr += 1
+				p += 1
 			}
 		}
 
-		if debug {
+		if stats.Debug {
 			dump()
 		}
 	}
 
+	//
 	// A1 [Initialize.]
-	if stats != nil && debug {
+	//
+	if stats != nil && stats.Debug {
 		log.Printf("A1. Initialize")
 	}
 
 	initialize()
 
-	// 	var (
-	// 		i int
-	// 		j int
-	// 		p int
-	// 	)
+	a = m
+	d = 1
 
-	// 	if progress {
-	// 		showProgress()
-	// 	}
+	if stats.Progress {
+		showProgress()
+	}
 
-	// C2:
-	// 	// C2. [Enter level l.]
-	// 	if debug {
-	// 		log.Printf("C2. Enter level %d, x[0:l]=%v\n", level, state[0:level])
-	// 	}
+A2:
+	//
+	// A2. [Choose.]
+	//
+	if stats.Debug {
+		log.Printf("A2. Choose.")
+	}
 
-	// 	if stats != nil {
-	// 		stats.Levels[level]++
-	// 		stats.Nodes++
+	// if stats != nil {
+	// 	stats.Levels[d-1]++
+	// 	stats.Nodes++
 
-	// 		if progress {
-	// 			if level > stats.MaxLevel {
-	// 				stats.MaxLevel = level
-	// 			}
-	// 			if stats.Nodes >= stats.Theta {
-	// 				showProgress()
-	// 				stats.Theta += stats.Delta
-	// 			}
+	// 	if stats.Progress {
+	// 		if level > stats.MaxLevel {
+	// 			stats.MaxLevel = level
 	// 		}
-	// 	}
-
-	// 	if rlink[0] == 0 {
-	// 		// visit the solution
-	// 		if debug {
-	// 			log.Println("C2. Visit the solution")
-	// 		}
-	// 		if stats != nil {
-	// 			stats.Solutions++
-	// 		}
-	// 		resume := lvisit()
-	// 		if !resume {
-	// 			if debug {
-	// 				log.Println("C2. Halting the search")
-	// 			}
-	// 			if progress {
-	// 				showProgress()
-	// 			}
-	// 			return nil
-	// 		}
-	// 		goto C8
-	// 	}
-
-	// 	// C3. [Choose i.]
-	// 	if xccOptions.Exercise83 && level == 0 {
-	// 		if debug && stats.Verbosity > 1 {
-	// 			log.Print("Exercise 83: always choose i=1 at level=0")
-	// 		}
-	// 		i = 1
-	// 	} else {
-	// 		i = next_item()
-	// 	}
-
-	// 	if debug {
-	// 		log.Printf("C3. Choose i=%d (%s)\n", i, name[i])
-	// 	}
-
-	// 	// C4. [Cover i.]
-	// 	if debug {
-	// 		log.Printf("C4. Cover i=%d (%s)\n", i, name[i])
-	// 	}
-	// 	cover(i)
-	// 	state[level] = dlink[i]
-
-	// C5:
-	// 	// C5. [Try x_l.]
-	// 	if debug {
-	// 		log.Printf("C5. Try l=%d, x[0:l+1]=%v\n", level, state[0:level+1])
-	// 	}
-	// 	if state[level] == i {
-	// 		goto C7
-	// 	}
-	// 	// Commit each of the items in this option
-	// 	p = state[level] + 1
-	// 	for p != state[level] {
-	// 		j := top[p]
-	// 		if j <= 0 {
-	// 			// spacer, go back to the first option
-	// 			p = ulink[p]
-	// 		} else {
-	// 			commit(p, j)
-	// 			p++
-	// 		}
-	// 	}
-	// 	level++
-	// 	goto C2
-
-	// C6:
-	// 	// C6. [Try again.]
-	// 	if debug {
-	// 		log.Printf("C6. Try again, l=%d\n", level)
-	// 	}
-
-	// 	if stats != nil {
-	// 		stats.Nodes++
-	// 	}
-
-	// 	// Uncommit each of the items in this option
-	// 	p = state[level] - 1
-	// 	for p != state[level] {
-	// 		j = top[p]
-	// 		if j <= 0 {
-	// 			p = dlink[p]
-	// 		} else {
-	// 			uncommit(p, j)
-	// 			p--
-	// 		}
-	// 	}
-
-	// 	// Exercise 7.2.2.1-83
-	// 	// This code works as expected for Exercise 87.  However, I am unable to
-	// 	// reconcile my understanding of this answer to Exercise 83 with the actual
-	// 	// description of the exercise.
-	// 	// TODO: reconcile this discrepency
-	// 	if xccOptions.Exercise83 && level == 0 {
-
-	// 		// x is the first primary item covered
-	// 		x := state[0]
-
-	// 		// Find the spacer at the right of this option
-	// 		for ; top[x] > 0; x++ {
-	// 		}
-
-	// 		// j is the last item in the option
-	// 		j = top[x-1]
-
-	// 		if j > n1 && color[x-1] == 0 {
-	// 			// j is a secondary item with no color
-	// 			// permanently remove from further consideration
-	// 			if debug && stats.Verbosity > 1 {
-	// 				log.Printf("Exercise 83: covering j=%d\n", j)
-	// 			}
-	// 			cover(j)
-	// 			if debug && stats.Verbosity > 2 {
-	// 				dump()
-	// 			}
-	// 		}
-
-	// 	}
-
-	// 	i = top[state[level]]
-	// 	state[level] = dlink[state[level]]
-	// 	goto C5
-
-	// C7:
-	// 	// C7. [Backtrack.]
-	// 	if debug {
-	// 		log.Println("C7. Backtrack")
-	// 	}
-	// 	uncover(i)
-
-	// C8:
-	// 	// C8. [Leave level l.]
-	// 	if debug {
-	// 		log.Printf("C8. Leaving level %d\n", level)
-	// 	}
-	// 	if level == 0 {
-	// 		if progress {
+	// 		if stats.Nodes >= stats.Theta {
 	// 			showProgress()
+	// 			stats.Theta += stats.Delta
 	// 		}
-	// 		return nil
 	// 	}
-	// 	level--
-	// 	goto C6
+	// }
 
-	return nil
+	l = 2 * d
+	if state[l].C <= state[l+1].C {
+		l += 1
+	}
+
+	moves[d] = l & 1
+	if l^1 == 0 {
+		moves[d] += 4
+	}
+
+	showProgress()
+
+	if state[l].C == a {
+		// // visit the solution
+		// if stats.Debug {
+		// 	log.Println("C2. Visit the solution")
+		// }
+		// if stats != nil {
+		// 	stats.Solutions++
+		// }
+		// resume := lvisit()
+		// if !resume {
+		// 	if stats.Debug {
+		// 		log.Println("C2. Halting the search")
+		// 	}
+		// 	if stats.Progress {
+		// 		showProgress()
+		// 	}
+		// 	return nil
+		// }
+
+		return nil
+	}
+
+A3:
+	//
+	// A3. [Remove ^l.]
+	//
+	if stats.Debug {
+		log.Printf("A3. Remove ^l.")
+	}
+
+	// Delete ^l from all active clauses; that is, ignore ^l because
+	// we are making l true
+
+	// Start at the very beginning
+	p = state[l^1].F
+
+	// Iterate over the clauses containing ^l
+	for p >= 2*n+2 {
+		j = state[p].C
+		i = size[j]
+		if i > 1 {
+			// Remove ^l from this clause
+			size[j] -= 1
+
+			// Advance to next clause
+			p = state[p].F
+
+		} else if i == 1 {
+			// ^l is the last literal and would make the clause empty
+			// undo what we've just done and go to A5
+
+			// Reverse direction
+			p = state[p].B
+
+			// Iterate back through the clauses
+			for p >= 2*n+2 {
+				// Add ^l back to the clause
+				j = state[p].C
+				size[j] += 1
+
+				// Advance to the next clause
+				p = state[p].B
+			}
+
+			goto A5
+
+		} else {
+			log.Fatal("Should not be reachable")
+		}
+	}
+
+	// A4. [Deactivate l's clauses.]
+	if stats.Debug {
+		log.Printf("A4. [Deactivate l's clauses.]")
+	}
+
+	// Suppress all clauses tht contain l
+
+	a -= state[l].C
+	d += 1
+
+	goto A2
+
+A5:
+	// A5 [Try again.]
+	if stats.Debug {
+		log.Printf("A5 [Try again.]")
+	}
+
+	if moves[d] < 2 {
+		moves[d] = 3 - moves[d]
+		l = 2*d + (moves[d] & 1)
+		goto A3
+	}
+
+	// A6 [Backtrack.]
+	if stats.Debug {
+		log.Printf("A6 [Backtrack.]")
+	}
+
+	if d == 1 {
+		// unsatisfiable
+		return nil
+	}
+
+	d -= 1
+	l = 2*d + (moves[d] & 1)
+
+	// A7 [Reactivate l's clauses.]
+	if stats.Debug {
+		log.Printf("A7 [Reactivate l's clauses.]")
+	}
+
+	a += state[l].C
+
+	// Unsuppress all clauses that contain l.
+
+	// A8 [Unremove ^l.]
+	if stats.Debug {
+		log.Printf("A8 [Unremove ^l.]")
+	}
+
+	// Reinstate ^l in all the active clauses that contain it.
+
+	goto A5
+
 }

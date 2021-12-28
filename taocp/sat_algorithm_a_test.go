@@ -41,7 +41,8 @@ func TestSATAlgorithmA(t *testing.T) {
 		// }
 
 		stats := SATStats{
-			Debug: true,
+			Debug:    true,
+			Progress: true,
 		}
 		options := SATOptions{}
 
