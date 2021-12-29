@@ -22,7 +22,7 @@ import (
 //
 func SATAlgorithmA(n int, clauses SATClauses,
 	stats *SATStats, options *SATOptions,
-	visit func(solution [][]string) bool) error {
+	visit func(solution []int) bool) error {
 
 	// State represents a single cell in the state table
 	type State struct {
@@ -42,8 +42,9 @@ func SATAlgorithmA(n int, clauses SATClauses,
 		d         int     // depth-plus-one of the implicit search tree
 		l         int     // literal
 		p         int     // index into the state table
-		i, j      int     // misc index values
 		moves     []int   // store current progress
+		debug     bool    // debugging is enabled
+		progress  bool    // progress tracking is enabled
 	)
 
 	// dump
@@ -147,6 +148,8 @@ func SATAlgorithmA(n int, clauses SATClauses,
 					stats.Levels = append(stats.Levels, 0)
 				}
 			}
+			debug = stats.Debug
+			progress = stats.Progress
 		}
 
 		// Initialize the state table
@@ -208,15 +211,27 @@ func SATAlgorithmA(n int, clauses SATClauses,
 			}
 		}
 
-		if stats.Debug {
+		if debug {
 			dump()
 		}
+	}
+
+	// lvisit prepares the solution and passes to visit()
+	lvisit := func() bool {
+		solution := make([]int, n)
+		for i := 1; i < n+1; i++ {
+			solution[i-1] = (moves[i] % 2) ^ 1
+		}
+		if debug {
+			log.Printf("visit solution=%v", solution)
+		}
+		return visit(solution)
 	}
 
 	//
 	// A1 [Initialize.]
 	//
-	if stats != nil && stats.Debug {
+	if debug {
 		log.Printf("A1. Initialize")
 	}
 
@@ -225,7 +240,7 @@ func SATAlgorithmA(n int, clauses SATClauses,
 	a = m
 	d = 1
 
-	if stats.Progress {
+	if progress {
 		showProgress()
 	}
 
@@ -233,7 +248,7 @@ A2:
 	//
 	// A2. [Choose.]
 	//
-	if stats.Debug {
+	if debug {
 		log.Printf("A2. Choose.")
 	}
 
@@ -241,7 +256,7 @@ A2:
 	// 	stats.Levels[d-1]++
 	// 	stats.Nodes++
 
-	// 	if stats.Progress {
+	// 	if progress {
 	// 		if level > stats.MaxLevel {
 	// 			stats.MaxLevel = level
 	// 		}
@@ -265,45 +280,43 @@ A2:
 	showProgress()
 
 	if state[l].C == a {
-		// // visit the solution
-		// if stats.Debug {
-		// 	log.Println("C2. Visit the solution")
-		// }
-		// if stats != nil {
-		// 	stats.Solutions++
-		// }
-		// resume := lvisit()
-		// if !resume {
-		// 	if stats.Debug {
-		// 		log.Println("C2. Halting the search")
-		// 	}
-		// 	if stats.Progress {
-		// 		showProgress()
-		// 	}
-		// 	return nil
-		// }
-
-		return nil
+		// visit the solution
+		if debug {
+			log.Println("A2. Visit the solution")
+		}
+		if stats != nil {
+			stats.Solutions++
+		}
+		resume := lvisit()
+		if !resume {
+			if debug {
+				log.Println("A2. Halting the search")
+			}
+			if progress {
+				showProgress()
+			}
+			return nil
+		}
 	}
 
 A3:
 	//
 	// A3. [Remove ^l.]
 	//
-	if stats.Debug {
+	if debug {
 		log.Printf("A3. Remove ^l.")
 	}
 
 	// Delete ^l from all active clauses; that is, ignore ^l because
 	// we are making l true
 
-	// Start at the very beginning
+	// Start at the first clause containing ^l
 	p = state[l^1].F
 
 	// Iterate over the clauses containing ^l
 	for p >= 2*n+2 {
-		j = state[p].C
-		i = size[j]
+		j := state[p].C
+		i := size[j]
 		if i > 1 {
 			// Remove ^l from this clause
 			size[j] -= 1
@@ -335,21 +348,48 @@ A3:
 		}
 	}
 
+	//
 	// A4. [Deactivate l's clauses.]
-	if stats.Debug {
+	//
+	if debug {
 		log.Printf("A4. [Deactivate l's clauses.]")
 	}
 
-	// Suppress all clauses tht contain l
+	// Suppress all clauses that contain l
 
+	// Start at the first clause containing l
+	p = state[l].F
+
+	// Iterate over the clauses containing l
+	for p >= 2*n+2 {
+		j := state[p].C
+		i := start[j]
+
+		// Iterate over each literal and remove from the clause
+		for s := i; i < i+size[j]-1; i++ {
+			f, b := state[s].F, state[s].B
+			state[f].B = b
+			state[b].F = f
+			state[state[s].L].C -= 1
+		}
+
+		// Advance to the next clause
+		p = state[p].F
+	}
+
+	// Update count of total active clauses
 	a -= state[l].C
+
+	// Increment the depth
 	d += 1
 
 	goto A2
 
 A5:
+	//
 	// A5 [Try again.]
-	if stats.Debug {
+	//
+	if debug {
 		log.Printf("A5 [Try again.]")
 	}
 
@@ -359,8 +399,10 @@ A5:
 		goto A3
 	}
 
+	//
 	// A6 [Backtrack.]
-	if stats.Debug {
+	//
+	if debug {
 		log.Printf("A6 [Backtrack.]")
 	}
 
@@ -369,24 +411,65 @@ A5:
 		return nil
 	}
 
+	// Decrement the depth
 	d -= 1
+
+	// TODO: what are we doing?
 	l = 2*d + (moves[d] & 1)
 
+	//
 	// A7 [Reactivate l's clauses.]
-	if stats.Debug {
+	//
+	if debug {
 		log.Printf("A7 [Reactivate l's clauses.]")
 	}
 
+	// Update count of total active clauses
 	a += state[l].C
 
 	// Unsuppress all clauses that contain l.
 
+	// Start at the last clause containing l
+	p = state[l].B
+
+	// Iterate over the clauses containing l
+	for p >= 2*n+2 {
+		j := state[p].C
+		i := start[j]
+
+		// Iterate over each literal and add back to the clause
+		for s := i; i < i+size[j]-1; i++ {
+			f, b := state[s].F, state[s].B
+			state[f].B = s
+			state[b].F = b
+			state[state[s].L].C += 1
+		}
+
+		// Advance to the next clause
+		p = state[p].B
+	}
+
+	//
+	//
 	// A8 [Unremove ^l.]
-	if stats.Debug {
+	//
+	if debug {
 		log.Printf("A8 [Unremove ^l.]")
 	}
 
 	// Reinstate ^l in all the active clauses that contain it.
+
+	// Start at the first clause containing ^l
+	p = state[l^1].F
+
+	// Iterate over the clauses containing l
+	for p >= 2*n+2 {
+		j := state[p].C
+		size[j] += 1
+
+		// Advance to the next clause
+		p = state[p].F
+	}
 
 	goto A5
 

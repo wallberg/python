@@ -41,15 +41,15 @@ func TestSATAlgorithmA(t *testing.T) {
 		// }
 
 		stats := SATStats{
-			Debug:    true,
-			Progress: true,
+			Debug: true,
+			// Progress: true,
 		}
 		options := SATOptions{}
 
 		stats.Debug = true
 
 		SATAlgorithmA(c.n, c.clauses, &stats, &options,
-			func(solution [][]string) bool {
+			func(solution []int) bool {
 				fmt.Print(solution)
 				return true
 			})
