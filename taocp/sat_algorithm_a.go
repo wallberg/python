@@ -9,8 +9,8 @@ import (
 )
 
 // SATAlgorithmA implements Algorithm A (7.2.2.2), satisfiability by backtracking.
-// The task is to determine if the clause set is satisfiable, optionally
-// return one or more satisfying assignments of the clauses.
+// The task is to determine if the clause set is satisfiable, and if it is returning
+// one satisfying assignment of the clauses.
 //
 // Arguments:
 // n       -- number of strictly distinct literals
@@ -21,8 +21,7 @@ import (
 //            true to request another assignment, false to halt
 //
 func SATAlgorithmA(n int, clauses SATClauses,
-	stats *SATStats, options *SATOptions,
-	visit func(solution []int) bool) error {
+	stats *SATStats, options *SATOptions) (bool, []int) {
 
 	// State represents a single cell in the state table
 	type State struct {
@@ -219,8 +218,8 @@ func SATAlgorithmA(n int, clauses SATClauses,
 		}
 	}
 
-	// lvisit prepares the solution and passes to visit()
-	lvisit := func() bool {
+	// lvisit prepares the solution
+	lvisit := func() []int {
 		solution := make([]int, n)
 		for i := 1; i < n+1; i++ {
 			solution[i-1] = (moves[i] % 2) ^ 1
@@ -228,7 +227,8 @@ func SATAlgorithmA(n int, clauses SATClauses,
 		if debug {
 			log.Printf("visit solution=%v", solution)
 		}
-		return visit(solution)
+
+		return solution
 	}
 
 	//
@@ -281,18 +281,7 @@ A2:
 			stats.Solutions++
 		}
 
-		resume := false
-		lvisit()
-
-		if !resume {
-			if debug {
-				log.Println("A2.   Halting the search")
-			}
-			if progress {
-				showProgress()
-			}
-			return nil
-		}
+		return true, lvisit()
 	}
 
 A3:
@@ -418,7 +407,7 @@ A5:
 
 	if d == 1 {
 		// unsatisfiable
-		return nil
+		return false, nil
 	}
 
 	// Decrement the depth

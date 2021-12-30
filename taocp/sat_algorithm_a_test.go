@@ -5,19 +5,6 @@ import (
 	"testing"
 )
 
-var ClausesR = SATClauses{
-	{1, 2, -3},
-	{2, 3, -4},
-	{3, 4, 1},
-	{4, -1, 2},
-	{-1, -2, 3},
-	{-2, -3, 4},
-	{-3, -4, -1},
-	{-4, 1, -2},
-}
-
-var ClausesRPrime = ClausesR[0:7]
-
 func TestSATAlgorithmA(t *testing.T) {
 
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
@@ -41,12 +28,7 @@ func TestSATAlgorithmA(t *testing.T) {
 		}
 		options := SATOptions{}
 
-		got := false
-		SATAlgorithmA(c.n, c.clauses, &stats, &options,
-			func(solution []int) bool {
-				got = true
-				return false
-			})
+		got, _ := SATAlgorithmA(c.n, c.clauses, &stats, &options)
 
 		if got != c.sat {
 			t.Errorf("expected satisfiable=%t for clauses %v; got %t", c.sat, c.clauses, got)
