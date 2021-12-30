@@ -1,7 +1,7 @@
 package taocp
 
 import (
-	"fmt"
+	"log"
 	"testing"
 )
 
@@ -20,38 +20,36 @@ var ClausesRPrime = ClausesR[0:7]
 
 func TestSATAlgorithmA(t *testing.T) {
 
+	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+
 	cases := []struct {
 		n       int        // number of strictly distinct literals
 		sat     bool       // is satisfiable
 		clauses SATClauses // clauses to satisfy
 	}{
-		//{3, true, SATClauses{{1, -2}, {2, 3}, {-1, -3}, {-1, -2, 3}}},
-		// {3, false, SATClauses{{1, -2}, {2, 3}, {-1, -3}, {-1, -2, 3}, {1, 2, -3}}},
+		{3, true, SATClauses{{1, -2}, {2, 3}, {-1, -3}, {-1, -2, 3}}},
+		{3, false, SATClauses{{1, -2}, {2, 3}, {-1, -3}, {-1, -2, 3}, {1, 2, -3}}},
 		{4, true, ClausesRPrime},
+		{4, false, ClausesR},
 	}
 
 	for _, c := range cases {
-		// if set, ok := sets.PieceSets[c.name]; !ok {
-		// 	t.Errorf("Did not find set name='%s'", c.name)
-		// } else {
-		// 	if len(set) != c.count {
-		// 		t.Errorf("Set '%s' has %d shapes; want %d",
-		// 			c.name, len(set), c.count)
-		// 	}
-		// }
 
 		stats := SATStats{
-			Debug: true,
+			// Debug: true,
 			// Progress: true,
 		}
 		options := SATOptions{}
 
-		stats.Debug = true
-
+		got := false
 		SATAlgorithmA(c.n, c.clauses, &stats, &options,
 			func(solution []int) bool {
-				fmt.Print(solution)
-				return true
+				got = true
+				return false
 			})
+
+		if got != c.sat {
+			t.Errorf("expected satisfiable=%t for clauses %v; got %t", c.sat, c.clauses, got)
+		}
 	}
 }
