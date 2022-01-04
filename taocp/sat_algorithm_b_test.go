@@ -56,11 +56,6 @@ func TestSatAlgorithmBFromFile(t *testing.T) {
 
 		clauses, variables, err := ReadSAT(c.filename)
 
-		// log.Printf("map=%v", literals)
-		// for _, clause := range clauses {
-		// 	log.Printf("%v", clause)
-		// }
-
 		if err != nil {
 			t.Errorf("expected to read file %s; got error %v", c.filename, err)
 			continue
