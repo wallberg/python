@@ -17,13 +17,13 @@ func TestSatAlgorithmB(t *testing.T) {
 		{3, true, SATClauses{{1, -2}, {2, 3}, {-1, -3}, {-1, -2, 3}}},
 		{3, false, SATClauses{{1, -2}, {2, 3}, {-1, -3}, {-1, -2, 3}, {1, 2, -3}}},
 		{4, true, ClausesRPrime},
-		// {4, false, ClausesR},
+		{4, false, ClausesR},
 	}
 
 	for _, c := range cases {
 
 		stats := SATStats{
-			Debug: true,
+			// Debug: true,
 			// Progress: true,
 		}
 		options := SATOptions{}
@@ -38,7 +38,7 @@ func TestSatAlgorithmB(t *testing.T) {
 
 func TestSatAlgorithmBFromFile(t *testing.T) {
 
-	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	// log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
 	cases := []struct {
 		filename     string // file name of the SAT data file
@@ -46,19 +46,13 @@ func TestSatAlgorithmBFromFile(t *testing.T) {
 		numClauses   int    // number of clauses to satisfy
 		sat          bool   // is satisfiable
 	}{
-		// {"testdata/SATExamples/A1.sat", 2043, 24772, false},
-		// {"testdata/SATExamples/A2.sat", 2071, 25197, true},
-		// {"testdata/SATExamples/K0.sat", 512, 5896, false},
-		// {"testdata/SATExamples/P2.sat", 144, 530, false},
-		// {"testdata/SATExamples/P3.sat", 144, 529, true},
-		// {"testdata/SATExamples/P4.sat", 400, 2509, true},
-		// {"testdata/SATExamples/L2.sat", 273, 1020, false},
-		// {"testdata/SATExamples/L5.sat", 1472, 102922, true},
 		{"testdata/SATExamples/L1.sat", 130, 2437, false},
 		{"testdata/SATExamples/X2.sat", 129, 354, false},
 	}
 
 	for _, c := range cases {
+
+		t.Logf("File: %s", c.filename)
 
 		clauses, variables, err := ReadSAT(c.filename)
 
@@ -83,7 +77,7 @@ func TestSatAlgorithmBFromFile(t *testing.T) {
 		stats := SATStats{
 			// Debug:    true,
 			// Progress: true,
-			// Delta:    100000000,
+			// Delta:    1000000000,
 		}
 		options := SATOptions{}
 

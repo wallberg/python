@@ -3,8 +3,6 @@ package taocp
 import (
 	"fmt"
 	"log"
-	"math"
-	"sort"
 	"strings"
 )
 
@@ -36,6 +34,7 @@ func SatAlgorithmB(n int, clauses SATClauses,
 		d         int     // depth-plus-one of the implicit search tree
 		l         int     // literal
 		p         int     // index into the state table
+		i, j, k   int     // indices
 		moves     []int   // store current progress
 		debug     bool    // debugging is enabled
 		progress  bool    // progress tracking is enabled
@@ -65,29 +64,36 @@ func SatAlgorithmB(n int, clauses SATClauses,
 		}
 		b.WriteString("\n")
 
-		// i
-		b.WriteString("       i = ")
-		for i := range start {
-			b.WriteString(fmt.Sprintf(" %2d", i))
-		}
-		b.WriteString("\n")
-
-		// START
-		b.WriteString("START(i) = ")
-		for _, val := range start {
-			b.WriteString(fmt.Sprintf(" %2d", val))
+		// l
+		b.WriteString("       l = ")
+		for l := range watch {
+			b.WriteString(fmt.Sprintf(" %2d", l))
 		}
 		b.WriteString("\n")
 
 		// WATCH
-		b.WriteString("WATCH(i) = ")
+		b.WriteString("WATCH(l) = ")
 		for _, val := range watch {
 			b.WriteString(fmt.Sprintf(" %2d", val))
 		}
 		b.WriteString("\n")
 
+		// j
+		b.WriteString("       j = ")
+		for j := range start {
+			b.WriteString(fmt.Sprintf(" %2d", j))
+		}
+		b.WriteString("\n")
+
+		// START
+		b.WriteString("START(j) = ")
+		for _, val := range start {
+			b.WriteString(fmt.Sprintf(" %2d", val))
+		}
+		b.WriteString("\n")
+
 		// LINK
-		b.WriteString(" LINK(i) = ")
+		b.WriteString(" LINK(j) = ")
 		for _, val := range link {
 			b.WriteString(fmt.Sprintf(" %2d", val))
 		}
@@ -125,7 +131,7 @@ func SatAlgorithmB(n int, clauses SATClauses,
 		m = len(clauses)
 		start = make([]int, m+1)
 		link = make([]int, m+1)
-		watch = make([]int, m+1)
+		watch = make([]int, 2*n+2)
 		moves = make([]int, n+1)
 
 		for _, clause := range clauses {
@@ -140,16 +146,8 @@ func SatAlgorithmB(n int, clauses SATClauses,
 
 		// Iterate over the clauses
 		for j := 1; j <= len(clauses); j++ {
-			clauseLen := len(clauses[j-1])
-			start[j] = p - clauseLen + 1
-
-			// Sort literals of the clause in ascending order
-			clause := make(SATClause, clauseLen)
-			copy(clause, clauses[j-1])
-			sort.SliceStable(clause, func(i, j int) bool {
-				// Sort by the absolute value of the literal, descending
-				return math.Abs(float64(clause[i])) < math.Abs(float64(clause[j]))
-			})
+			clause := clauses[j-1]
+			start[j] = p - len(clause) + 1
 
 			// Iterate over literal values of the clauses
 			for _, k := range clause {
@@ -163,6 +161,25 @@ func SatAlgorithmB(n int, clauses SATClauses,
 
 				// insert into the state table
 				state[p].L = l
+
+				// Check if this is the last literal in the clause
+				if p == start[j] {
+					// Insert this literal into the watch list of clauses.
+					// watch is the head of the list, with link containing
+					// the next pointers. The last clause in the list has
+					// value of 0.
+					if watch[l] == 0 {
+						// Insert the first clause into the list
+						watch[l] = j
+					} else {
+						// Insert this clause to the end of the list
+						jp := watch[l]
+						for link[jp] != 0 {
+							jp = link[jp]
+						}
+						link[jp] = j
+					}
+				}
 
 				// advance to the next position in the table
 				p -= 1
@@ -207,252 +224,159 @@ func SatAlgorithmB(n int, clauses SATClauses,
 		showProgress()
 	}
 
-	return true, lvisit()
+	//
+	// B2. [Rejoice or choose.]
+	//
+B2:
+	if d > n {
+		// visit the solution
+		if debug {
+			log.Println("B2. [Rejoice.]")
+		}
+		if stats != nil {
+			stats.Solutions++
+		}
 
-	// A2:
-	// 	//
-	// 	// A2. [Choose.]
-	// 	//
+		return true, lvisit()
+	}
 
-	// 	// Choose l if it is contained in the most clauses, other ^l
-	// 	l = 2 * d
-	// 	if state[l].C <= state[l+1].C {
-	// 		l += 1
-	// 	}
+	if watch[2*d] == 0 || watch[2*d+1] != 0 {
+		moves[d] = 1
+	} else {
+		moves[d] = 0
+	}
 
-	// 	moves[d] = l & 1
-	// 	if state[l^1].C == 0 {
-	// 		moves[d] += 4
-	// 	}
+	l = 2*d + moves[d]
 
-	// 	if debug {
-	// 		log.Printf("A2. [Choose.] d=%d, a=%d, l=%d, moves=%v", d, a, l, moves[1:d+1])
-	// 	}
+	if debug {
+		log.Printf("B2. [Choose.] d=%d, l=%d, moves=%v", d, l, moves[1:d+1])
+	}
 
-	// 	if stats != nil {
-	// 		stats.Levels[d-1]++
-	// 		stats.Nodes++
+	if stats != nil {
+		stats.Levels[d-1]++
+		stats.Nodes++
 
-	// 		if progress {
-	// 			if d > stats.MaxLevel {
-	// 				stats.MaxLevel = d
-	// 			}
-	// 			if stats.Nodes >= stats.Theta {
-	// 				showProgress()
-	// 				stats.Theta += stats.Delta
-	// 			}
-	// 		}
-	// 	}
+		if progress {
+			if d > stats.MaxLevel {
+				stats.MaxLevel = d
+			}
+			if stats.Nodes >= stats.Theta {
+				showProgress()
+				stats.Theta += stats.Delta
+			}
+		}
+	}
 
-	// 	if state[l].C == a {
-	// 		// visit the solution
-	// 		if debug {
-	// 			log.Println("A2.   Visit the solution")
-	// 		}
-	// 		if stats != nil {
-	// 			stats.Solutions++
-	// 		}
+	//
+	// B3. [Remove ^l if possible.]
+	//
+B3:
+	if debug {
+		log.Printf("B3. [Remove ^l if possible.] ^l=%d.", l^1)
+	}
 
-	// 		return true, lvisit()
-	// 	}
+	// For all j such that ^l is watched in clause j, watch another
+	// literal of clause j. But go to B5 if that can't be done.
 
-	// A3:
-	// 	//
-	// 	// A3. [Remove ^l.]
-	// 	//
-	// 	if debug {
-	// 		log.Printf("A3. [Remove ^l.] ^l=%d.", l^1)
-	// 	}
+	j = watch[l^1]
+	if debug {
+		log.Printf("B3.   j=watch[%d]=%d", j, l^1)
+	}
 
-	// 	// Delete ^l from all active clauses; that is, ignore ^l because
-	// 	// we are making l true
+	// While j <> 0, a literal other than ^l should be watch in clause j
+	for j != 0 {
+		i = start[j]
+		ip := start[j-1]
+		jp := link[j]
+		k = i + 1
 
-	// 	// Start at the first clause containing ^l
-	// 	p = state[l^1].F
+		if debug {
+			log.Printf("B3.   j=%d, i=%d, ip=%d, jp=%d", j, i, ip, jp)
+		}
 
-	// 	// Iterate over the clauses containing ^l
-	// 	for p >= 2*n+2 {
-	// 		j := state[p].C
-	// 		i := size[j]
+		for k < ip {
+			lp := state[k].L
 
-	// 		if i > 1 {
-	// 			// Remove ^l from this clause
-	// 			size[j] = i - 1
+			if debug {
+				log.Printf("B3.   k=%d, lp=%d", k, lp)
+			}
 
-	// 			// Advance to next clause
-	// 			p = state[p].F
+			// check if lp isn't false
+			if (lp>>1) > d || (lp+moves[lp>>1])%2 == 0 {
+				state[i].L = lp
+				state[k].L = l ^ 1
+				link[j] = watch[lp]
+				watch[lp] = j
+				j = jp
+				break
+			}
 
-	// 		} else if i == 1 {
-	// 			// ^l is the last literal and would make the clause empty
-	// 			// undo what we've just done and go to A5
+			k += 1
+		}
 
-	// 			if debug {
-	// 				log.Printf("A3. Cancel, this would leave a clause empty; p=%d, j=%d, i=%d", p, j, i)
-	// 			}
+		if k == ip {
+			// we can't stop watching ^l
+			watch[l^1] = j
 
-	// 			// Reverse direction
-	// 			p = state[p].B
+			goto B5
+		}
 
-	// 			// Iterate back through the clauses
-	// 			for p >= 2*n+2 {
-	// 				// Add ^l back to the clause
-	// 				j = state[p].C
-	// 				size[j] += 1
+	}
 
-	// 				// Advance to the next clause
-	// 				p = state[p].B
-	// 			}
+	//
+	// B4. [Advance.]
+	//
 
-	// 			goto A5
+	watch[l^1] = 0
+	d += 1
 
-	// 		} else {
-	// 			log.Fatal("A3. Should not be reachable")
-	// 		}
-	// 	}
+	if debug {
+		log.Printf("B4. [Advance.] d=%d", d)
+	}
 
-	// 	//
-	// 	// A4. [Deactivate l's clauses.]
-	// 	//
-	// 	if debug {
-	// 		log.Printf("A4. [Deactivate l's clauses.] l=%d", l)
-	// 	}
+	goto B2
 
-	// 	// Suppress all clauses that contain l
+B5:
+	//
+	// B5. [Try again.]
+	//
+	if debug {
+		log.Printf("B5. [Try again.]")
+	}
 
-	// 	// Start at the first clause containing l
-	// 	p = state[l].F
+	if moves[d] < 2 {
+		moves[d] = 3 - moves[d]
+		l = 2*d + (moves[d] & 1)
 
-	// 	// Iterate over the clauses containing l
-	// 	for p >= 2*n+2 {
-	// 		j := state[p].C
-	// 		i := start[j]
+		if debug {
+			log.Printf("B5.   d=%d, l=%d, moves=%v", d, l, moves[1:d+1])
+		}
 
-	// 		// Iterate over each literal and remove from the clause
-	// 		for s := i; s < i+size[j]-1; s++ {
-	// 			f, b := state[s].F, state[s].B
-	// 			state[f].B = b
-	// 			state[b].F = f
-	// 			state[state[s].L].C -= 1
-	// 			if state[state[s].L].C < 0 {
-	// 				dump()
-	// 				log.Fatal("A4. C(L(s)) should not be < 0")
-	// 			}
-	// 		}
+		if stats != nil {
+			stats.Nodes++
+		}
 
-	// 		p = state[p].F
+		goto B3
+	}
 
-	// 	}
+	//
+	// B6. [Backtrack.]
+	//
+	if debug {
+		log.Printf("B6. [Backtrack.]")
+	}
 
-	// 	// Update count of total active clauses
-	// 	a -= state[l].C
+	if d == 1 {
+		// unsatisfiable
+		return false, nil
+	}
 
-	// 	// Increment the depth
-	// 	d += 1
+	// Decrement the depth
+	d -= 1
 
-	// 	goto A2
+	if debug {
+		log.Printf("B6. d=%d, l=%d, moves=%v", d, l, moves[1:d+1])
+	}
 
-	// A5:
-	// 	//
-	// 	// A5. [Try again.]
-	// 	//
-	// 	if debug {
-	// 		log.Printf("A5. [Try again.]")
-	// 	}
-
-	// 	if moves[d] < 2 {
-	// 		moves[d] = 3 - moves[d]
-	// 		l = 2*d + (moves[d] & 1)
-
-	// 		if debug {
-	// 			log.Printf("A5. d=%d, a=%d, l=%d, moves=%v", d, a, l, moves[1:d+1])
-	// 		}
-
-	// 		if stats != nil {
-	// 			stats.Nodes++
-	// 		}
-
-	// 		goto A3
-	// 	}
-
-	// 	//
-	// 	// A6. [Backtrack.]
-	// 	//
-	// 	if debug {
-	// 		log.Printf("A6. [Backtrack.]")
-	// 	}
-
-	// 	if d == 1 {
-	// 		// unsatisfiable
-	// 		return false, nil
-	// 	}
-
-	// 	// Decrement the depth
-	// 	d -= 1
-
-	// 	// TODO: what are we doing?
-	// 	l = 2*d + (moves[d] & 1)
-
-	// 	if debug {
-	// 		log.Printf("A6. d=%d, a=%d, l=%d, moves=%v", d, a, l, moves[1:d+1])
-	// 	}
-
-	// 	//
-	// 	// A7 [Reactivate l's clauses.]
-	// 	//
-	// 	if debug {
-	// 		log.Printf("A7. [Reactivate l's clauses.]")
-	// 	}
-
-	// 	// Update count of total active clauses
-	// 	a += state[l].C
-
-	// 	// Unsuppress all clauses that contain l.
-
-	// 	// Start at the last clause containing l
-	// 	p = state[l].B
-
-	// 	// Iterate over the clauses containing l
-	// 	for p >= 2*n+2 {
-	// 		j := state[p].C
-	// 		i := start[j]
-
-	// 		// Iterate over each literal and add back to the clause
-	// 		for s := i; s < i+size[j]-1; s++ {
-	// 			f, b := state[s].F, state[s].B
-	// 			state[f].B = s
-	// 			state[b].F = s
-	// 			state[state[s].L].C += 1
-	// 		}
-
-	// 		// Advance to the next clause
-	// 		p = state[p].B
-	// 	}
-
-	// 	if debug {
-	// 		log.Printf("A7. d=%d, a=%d, l=%d, moves=%v", d, a, l, moves[1:d+1])
-	// 	}
-
-	// 	//
-	// 	// A8. [Unremove ^l.]
-	// 	//
-	// 	if debug {
-	// 		log.Printf("A8. [Unremove ^l.]")
-	// 	}
-
-	// 	// Reinstate ^l in all the active clauses that contain it.
-
-	// 	// Start at the first clause containing ^l
-	// 	p = state[l^1].F
-
-	// 	// Iterate over the clauses containing l
-	// 	for p >= 2*n+2 {
-	// 		j := state[p].C
-	// 		size[j] += 1
-
-	// 		// Advance to the next clause
-	// 		p = state[p].F
-	// 	}
-
-	// 	goto A5
-
+	goto B5
 }
