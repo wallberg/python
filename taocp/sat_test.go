@@ -1,6 +1,7 @@
 package taocp
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -47,6 +48,31 @@ func TestReadSAT(t *testing.T) {
 			if len(clauses) != c.numClauses {
 				t.Errorf("expected %d clauses; got %d", c.numClauses, len(clauses))
 			}
+		}
+	}
+}
+
+func TestSatWaerden(t *testing.T) {
+	cases := []struct {
+		j, k, n int
+		clauses SatClauses
+	}{
+		{3, 3, 9, SatClauses{
+			{1, 2, 3}, {2, 3, 4}, {3, 4, 5}, {4, 5, 6}, {5, 6, 7}, {6, 7, 8}, {7, 8, 9},
+			{1, 3, 5}, {2, 4, 6}, {3, 5, 7}, {4, 6, 8}, {5, 7, 9},
+			{1, 4, 7}, {2, 5, 8}, {3, 6, 9},
+			{1, 5, 9},
+			{-1, -2, -3}, {-2, -3, -4}, {-3, -4, -5}, {-4, -5, -6}, {-5, -6, -7}, {-6, -7, -8}, {-7, -8, -9},
+			{-1, -3, -5}, {-2, -4, -6}, {-3, -5, -7}, {-4, -6, -8}, {-5, -7, -9},
+			{-1, -4, -7}, {-2, -5, -8}, {-3, -6, -9},
+			{-1, -5, -9}}},
+	}
+
+	for _, c := range cases {
+		got := SatWaerdan(c.j, c.k, c.n)
+
+		if !reflect.DeepEqual(got, c.clauses) {
+			t.Errorf("expected for waerden(%d,%d,%d) clauses %v; got %v", c.j, c.k, c.n, c.clauses, got)
 		}
 	}
 }

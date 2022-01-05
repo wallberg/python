@@ -110,3 +110,30 @@ func SatRead(filename string) (SatClauses, map[int]string, error) {
 
 	return clauses, variable2name, nil
 }
+
+// SatWaerdan returns the SAT clauses for waerden(j,k;n)
+func SatWaerdan(j, k, n int) SatClauses {
+	var clauses SatClauses
+
+	for d := 1; n > (j-1)*d; d++ {
+		for i := 1; i <= n-(j-1)*d; i++ {
+			var clause SatClause
+			for v := i; v <= i+(j-1)*d; v += d {
+				clause = append(clause, v)
+			}
+			clauses = append(clauses, clause)
+		}
+	}
+
+	for d := 1; n > (k-1)*d; d++ {
+		for i := 1; i <= n-(k-1)*d; i++ {
+			var clause SatClause
+			for v := i; v <= i+(k-1)*d; v += d {
+				clause = append(clause, -1*v)
+			}
+			clauses = append(clauses, clause)
+		}
+	}
+
+	return clauses
+}
