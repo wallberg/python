@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// SatAlgorithmD implements Algorithm B (7.2.2.2), satisfiability by cyclic DPLL.
+// SatAlgorithmD implements Algorithm D (7.2.2.2), satisfiability by cyclic DPLL.
 // The task is to determine if the clause set is satisfiable, and if it is return
 // one satisfying assignment of the clauses.
 //

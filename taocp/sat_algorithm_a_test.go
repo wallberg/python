@@ -18,6 +18,7 @@ func TestSatAlgorithmA(t *testing.T) {
 		{3, false, SatClauses{{1, -2}, {2, 3}, {-1, -3}, {-1, -2, 3}, {1, 2, -3}}},
 		{4, true, ClausesRPrime},
 		{4, false, ClausesR},
+		{9, false, ClausesWaerden339},
 	}
 
 	for _, c := range cases {

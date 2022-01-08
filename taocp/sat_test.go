@@ -18,6 +18,8 @@ var ClausesR = SatClauses{
 
 var ClausesRPrime = ClausesR[0:7]
 
+var ClausesWaerden339 = SatWaerdan(3, 3, 9)
+
 func TestReadSAT(t *testing.T) {
 
 	cases := []struct {
