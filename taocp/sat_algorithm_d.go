@@ -25,20 +25,50 @@ func SatAlgorithmD(n int, clauses SatClauses,
 	}
 
 	var (
-		m         int     // total number of clauses
-		stateSize int     // total size of the state table
-		state     []State // search state
-		start     []int   // start of each clause in the table
-		watch     []int   // list of all clauses that currently watch l
-		link      []int   // the number of another clause with the same watch literal
-		d         int     // depth-plus-one of the implicit search tree
-		l         int     // literal
-		p         int     // index into the state table
-		i, j, k   int     // indices
-		moves     []int   // store current progress
-		debug     bool    // debugging is enabled
-		progress  bool    // progress tracking is enabled
+		m           int     // total number of clauses
+		stateSize   int     // total size of the state table
+		state       []State // search state
+		start       []int   // start of each clause in the table
+		watch       []int   // list of all clauses that currently watch l
+		link        []int   // the number of another clause with the same watch literal
+		h           []int   // the literal being watched at depth d
+		next        []int   // active ring : not-yet-set variables whose watch lists aren't empty
+		head        int     // head pointer into the active ring
+		tail        int     // tail pointer into the active ring
+		d           int     // depth of the implicit search tree
+		x           []int   // selected literal at depth d
+		l, lp       int     // literal
+		p, q        int     // index into the state table
+		b           int     // branch on literal?
+		f           int     // flag?
+		i, j, jp, k int     // indices
+		moves       []int   // store current progress
+		debug       bool    // debugging is enabled
+		progress    bool    // progress tracking is enabled
 	)
+
+	// activeRing returns a string with members of the active ring
+	activeRing := func() string {
+		var b strings.Builder
+		b.WriteString("(")
+
+		if tail != 0 {
+			l := head
+			for {
+				if l != head {
+					b.WriteString(" ")
+				}
+				b.WriteString(fmt.Sprintf("%d", l))
+				l = next[l]
+				if l == head {
+					break
+				}
+			}
+		}
+		b.WriteString(")")
+
+		return b.String()
+	}
 
 	// dump
 	dump := func() {
@@ -77,6 +107,15 @@ func SatAlgorithmD(n int, clauses SatClauses,
 			b.WriteString(fmt.Sprintf(" %2d", val))
 		}
 		b.WriteString("\n")
+
+		// NEXT
+		b.WriteString(" NEXT(v) = ")
+		for _, val := range next {
+			b.WriteString(fmt.Sprintf(" %2d", val))
+		}
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("head=%d, tail=%d\n", head, tail))
+		b.WriteString(fmt.Sprintf("active ring=%s\n", activeRing()))
 
 		// j
 		b.WriteString("       j = ")
@@ -133,6 +172,9 @@ func SatAlgorithmD(n int, clauses SatClauses,
 		link = make([]int, m+1)
 		watch = make([]int, 2*n+2)
 		moves = make([]int, n+1)
+		h = make([]int, n+1)
+		next = make([]int, n+1)
+		x = make([]int, n+1)
 
 		for _, clause := range clauses {
 			stateSize += len(clause)
@@ -185,17 +227,13 @@ func SatAlgorithmD(n int, clauses SatClauses,
 				p -= 1
 			}
 		}
-
-		if debug {
-			dump()
-		}
 	}
 
 	// lvisit prepares the solution
 	lvisit := func() []int {
 		solution := make([]int, n)
 		for i := 1; i < n+1; i++ {
-			solution[i-1] = (moves[i] % 2) ^ 1
+			solution[i-1] = (x[i] % 2) ^ 1
 		}
 		if debug {
 			log.Printf("visit solution=%v", solution)
@@ -204,20 +242,66 @@ func SatAlgorithmD(n int, clauses SatClauses,
 		return solution
 	}
 
+	// isUnit determines if literal l is being watched in some clause whose other
+	// literals are entirely false; return 0 if false, 1 if true
+	isUnit := func(l int) int {
+		j := watch[l]
+
+		for j != 0 {
+			// step (i)
+			p := start[j] + 1
+
+			// step (ii)
+		D3ii:
+			if p == start[j-1] {
+				return 1
+			}
+
+			// step (iii) - Check if L(p) is false
+			if x[state[p].L>>1] == state[p].L&1 {
+				p += 1
+				goto D3ii
+			}
+
+			// step (iv)
+			j = link[j]
+		}
+
+		return 0
+	}
+
 	//
-	// B1 [Initialize.]
+	// D1 [Initialize.]
 	//
 
 	initialize()
 
 	if debug {
-		log.Printf("B1. Initialize")
+		log.Printf("D1. Initialize")
 	}
 
-	d = 1
+	moves[0] = 0
+	d = 0
+	head = 0
+	tail = 0
+
+	for k = n; k >= 1; k-- {
+		x[k] = -1 // an unset value
+		if watch[2*k] != 0 || watch[2*k+1] != 0 {
+			next[k] = head
+			head = k
+			if tail == 0 {
+				tail = k
+			}
+		}
+	}
+
+	if tail != 0 {
+		next[tail] = head
+	}
 
 	if debug {
-		log.Printf("    d=%d, l=%d, moves=%v", d, l, moves[1:d+1])
+		dump()
 	}
 
 	if progress {
@@ -225,13 +309,13 @@ func SatAlgorithmD(n int, clauses SatClauses,
 	}
 
 	//
-	// B2. [Rejoice or choose.]
+	// D2. [Success?]
 	//
-B2:
-	if d > n {
+D2:
+	if tail == 0 {
 		// visit the solution
 		if debug {
-			log.Println("B2. [Rejoice.]")
+			log.Println("D2. [Success!]")
 		}
 		if stats != nil {
 			stats.Solutions++
@@ -240,20 +324,10 @@ B2:
 		return true, lvisit()
 	}
 
-	if watch[2*d] == 0 || watch[2*d+1] != 0 {
-		moves[d] = 1
-	} else {
-		moves[d] = 0
-	}
-
-	l = 2*d + moves[d]
-
-	if debug {
-		log.Printf("B2. [Choose.] d=%d, l=%d, moves=%v", d, l, moves[1:d+1])
-	}
+	k = tail
 
 	if stats != nil {
-		stats.Levels[d-1]++
+		stats.Levels[d]++
 		stats.Nodes++
 
 		if progress {
@@ -268,115 +342,173 @@ B2:
 	}
 
 	//
-	// B3. [Remove ^l if possible.]
+	// D3. [Look for unit clauses.]
 	//
-B3:
+D3:
+	head = next[k]
+
 	if debug {
-		log.Printf("B3. [Remove ^l if possible.] ^l=%d.", l^1)
+		log.Printf("D3. [Look for unit clauses.] active=%s, k=%d, head=%d", activeRing(), k, head)
 	}
 
-	// For all j such that ^l is watched in clause j, watch another
-	// literal of clause j. But go to B5 if that can't be done.
-
-	j = watch[l^1]
+	// Compute f = [2h is a unit] + 2[2h + 1 is a unit]
+	f = isUnit(2*head) + 2*isUnit(2*head+1)
 	if debug {
-		log.Printf("B3.   j=watch[%d]=%d", j, l^1)
+		log.Printf("D3. f=%d", f)
 	}
 
-	// While j <> 0, a literal other than ^l should be watch in clause j
-	for j != 0 {
-		i = start[j]
-		ip := start[j-1]
-		jp := link[j]
-		k = i + 1
+	if f == 3 {
+		goto D7 // [Backtrack.]
+	}
 
-		if debug {
-			log.Printf("B3.   j=%d, i=%d, ip=%d, jp=%d", j, i, ip, jp)
-		}
+	if f == 1 || f == 2 {
+		moves[d+1] = f + 3
+		tail = k
+		goto D5 // [Move on.]
+	}
 
-		for k < ip {
-			lp := state[k].L
-
-			if debug {
-				log.Printf("B3.   k=%d, lp=%d", k, lp)
-			}
-
-			// check if lp isn't false
-			if (lp>>1) > d || (lp+moves[lp>>1])%2 == 0 {
-				state[i].L = lp
-				state[k].L = l ^ 1
-				link[j] = watch[lp]
-				watch[lp] = j
-				j = jp
-				break
-			}
-
-			k += 1
-		}
-
-		if k == ip {
-			// we can't stop watching ^l
-			watch[l^1] = j
-
-			goto B5
-		}
-
+	if head != tail {
+		k = head
+		goto D3 // [Look for unit clauses.]
 	}
 
 	//
-	// B4. [Advance.]
+	// D4. [Two-way branch.]
 	//
 
-	watch[l^1] = 0
+	head = next[tail]
+	if watch[2*head] == 0 || watch[2*head+1] != 0 {
+		moves[d+1] = 1
+	} else {
+		moves[d+1] = 0
+	}
+
+	if debug {
+		log.Printf("D4. [Two-way branch.] d=%d, x=%v, moves=%v", d, x[1:], moves[1:d+1])
+	}
+
+D5:
+	//
+	// D5. [Move on.]
+	//
+	if debug {
+		log.Printf("D5. [Move on.]")
+	}
+
 	d += 1
+	h[d] = head
+	k = head
 
-	if debug {
-		log.Printf("B4. [Advance.] d=%d", d)
+	if tail == k {
+		tail = 0
+	} else {
+		// delete variable k from the ring
+		next[tail] = next[k]
+		head = next[k]
 	}
 
-	goto B2
-
-B5:
 	//
-	// B5. [Try again.]
+	// D6. [Update watches.]
 	//
+D6:
 	if debug {
-		log.Printf("B5. [Try again.]")
+		log.Printf("D6. [Update watches.]")
 	}
 
-	if moves[d] < 2 {
+	b = (moves[d] + 1) % 2
+	x[k] = b
+
+	// Clear the watch list for ^(x_k)
+	l = 2*k + b
+	j = watch[l]
+	watch[l] = 0
+
+	for j != 0 {
+
+		// step (i)
+		jp = link[j]
+		i = start[j]
+		p = i + 1
+
+		// step (ii) - loop while L(p) is false
+		// will end before p == start[j-1]
+		for x[state[p].L>>1] == state[p].L&1 {
+			p += 1
+		}
+
+		// step (iii)
+		lp = state[p].L
+		state[p].L = l
+		state[i].L = lp
+
+		// step (iv)
+		p = watch[lp]
+		q = watch[lp^1]
+		if p != 0 || q != 0 || x[lp>>1] >= 0 {
+			goto D6vi
+		}
+
+		// step (v) - Insert |l'| into the ring as its new head
+		if tail == 0 {
+			tail = lp >> 1
+			head = lp >> 1
+			next[tail] = head
+		} else {
+			next[lp>>1] = head
+			head = lp >> 1
+			next[tail] = head
+		}
+
+		// step (vi)
+	D6vi:
+		// Insert j into the watch list of l'
+		link[j] = p
+		watch[lp] = j
+
+		// step (vii)
+		j = jp
+	}
+
+	if debug {
+		log.Printf("D6. d=%d, l=%d, active=%s, x=%v, moves=%v", d, l, activeRing(), x[1:], moves[1:d+1])
+	}
+
+	goto D2
+
+	//
+	// D7. [Backtrack.]
+	//
+D7:
+	if debug {
+		log.Printf("D7. [Backtrack.]")
+	}
+
+	tail = k
+
+	for moves[d] >= 2 {
+		k = h[d]
+		x[k] = -1
+		if watch[2*k] != 0 || watch[2*k+1] != 0 {
+			next[k] = head
+			head = k
+			next[tail] = head
+		}
+		d -= 1
+	}
+
+	//
+	// D8. [Failure?]
+	//
+	if debug {
+		log.Printf("D8. [Failure?]")
+	}
+
+	if d > 0 {
 		moves[d] = 3 - moves[d]
-		l = 2*d + (moves[d] & 1)
-
-		if debug {
-			log.Printf("B5.   d=%d, l=%d, moves=%v", d, l, moves[1:d+1])
-		}
-
-		if stats != nil {
-			stats.Nodes++
-		}
-
-		goto B3
+		k = h[d]
+		goto D6
 	}
 
-	//
-	// B6. [Backtrack.]
-	//
-	if debug {
-		log.Printf("B6. [Backtrack.]")
-	}
-
-	if d == 1 {
-		// unsatisfiable
-		return false, nil
-	}
-
-	// Decrement the depth
-	d -= 1
-
-	if debug {
-		log.Printf("B6. d=%d, l=%d, moves=%v", d, l, moves[1:d+1])
-	}
-
-	goto B5
+	// Terminate, the clauses aren't satisfiable
+	return false, nil
 }

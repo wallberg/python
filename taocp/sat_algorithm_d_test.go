@@ -29,7 +29,7 @@ func TestSatAlgorithmD(t *testing.T) {
 		}
 		options := SatOptions{}
 
-		got, _ := SatAlgorithmB(c.n, c.clauses, &stats, &options)
+		got, _ := SatAlgorithmD(c.n, c.clauses, &stats, &options)
 
 		if got != c.sat {
 			t.Errorf("expected satisfiable=%t for clauses %v; got %t", c.sat, c.clauses, got)
@@ -48,7 +48,11 @@ func TestSatAlgorithmDFromFile(t *testing.T) {
 		sat          bool   // is satisfiable
 	}{
 		{"testdata/SATExamples/L1.sat", 130, 2437, false},
+		{"testdata/SATExamples/L2.sat", 273, 1020, false},
+		{"testdata/SATExamples/L5.sat", 1472, 102922, true},
 		{"testdata/SATExamples/X2.sat", 129, 354, false},
+		{"testdata/SATExamples/P3.sat", 144, 529, true},
+		{"testdata/SATExamples/P4.sat", 400, 2509, true},
 	}
 
 	for _, c := range cases {
@@ -77,7 +81,7 @@ func TestSatAlgorithmDFromFile(t *testing.T) {
 			}
 			options := SatOptions{}
 
-			got, _ := SatAlgorithmB(len(variables), clauses, &stats, &options)
+			got, _ := SatAlgorithmD(len(variables), clauses, &stats, &options)
 
 			if got != c.sat {
 				t.Errorf("expected satisfiable=%t for filename %s; got %t", c.sat, c.filename, got)
