@@ -13,3 +13,4 @@ problems.html
 test/*
 cmd/taocp/taocp
 com/github/wallberg/euler
+.venv
